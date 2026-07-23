@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Pro | VSSY Zip Master V4</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --red: #be123c; --red-bg: #fff1f2; --gradient: linear-gradient(135deg, #be123c, #fb7185); }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--red-bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .card { background: white; border-radius: 28px; padding: 35px; width: 100%; max-width: 500px; box-shadow: 0 20px 40px rgba(190, 18, 60, 0.1); border: 1px solid #ffe4e6; text-align: center; }
+        .header-icon { width: 70px; height: 70px; background: var(--red-bg); color: var(--red); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 30px; margin: 0 auto 20px; }
+        h2 { color: var(--red); font-weight: 800; margin-bottom: 5px; }
+        p { color: #64748b; font-size: 13px; margin-bottom: 25px; }
+        label { display: block; text-align: left; font-size: 11px; font-weight: 800; color: var(--red); margin-bottom: 8px; text-transform: uppercase; margin-top: 15px; }
+        select { width: 100%; padding: 14px; border-radius: 14px; border: 2px solid #fda4af; font-weight: 600; font-size: 14px; outline: none; background: #fffcfc; transition: 0.3s; margin-bottom: 5px; }
+        .btn-download { background: var(--gradient); color: white; border: none; width: 100%; padding: 16px; border-radius: 16px; font-weight: 800; font-size: 15px; cursor: pointer; margin-top: 30px; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s; box-shadow: 0 10px 20px rgba(190, 18, 60, 0.2); }
+        .btn-download:disabled { background: #cbd5e1; cursor: not-allowed; }
+        #loader { display: none; margin-top: 15px; font-weight: 700; color: var(--red); font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="header-icon"><i class="fas fa-file-zipper"></i></div>
+    <h2>VSSY Bulk Export</h2>
+    <p>ZIP: Individual & Combined Batch Reports</p>
+
+    <label>1. Master List</label>
+    <select id="listSelect" onchange="fetchTrainings(this.value)">
+        <option value="">-- Choose Master List --</option>
+    </select>
+
+    <label>2. Training/Trade</label>
+    <select id="trainingSelect" disabled>
+        <option value="">-- Select Training --</option>
+    </select>
+
+    <button id="downloadBtn" class="btn-download" onclick="generateZip()" disabled>
+        <i class="fas fa-download"></i> PROCESS & DOWNLOAD ZIP
+    </button>
+    
+    <div id="loader"><i class="fas fa-spinner fa-spin"></i> Initializing Sync Engine...</div>
+</div>
+
+<script>
+// Firebase Configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Excel Column Definitions
+const vssyColumns = [
+    { header: 'S.No.', key: 'sn', width: 8 },
+    { header: 'TP name', key: 'tpName', width: 12 },
+    { header: 'Centre Name & Address', key: 'centerAddr', width: 35 },
+    { header: 'Enrollment number', key: 'enrollNo', width: 20 },
+    { header: 'Salutation', key: 'salutation', width: 10 },
+    { header: 'Name Candidate', key: 'candidateName', width: 25 },
+    { header: 'GuardianType', key: 'gType', width: 12 },
+    { header: 'Marital Status', key: 'marital', width: 15 },
+    { header: 'Date of Birth', key: 'dob', width: 14 },
+    { header: 'Name of Father Guardian', key: 'father', width: 25 },
+    { header: 'Aadhaar no', key: 'aadhar', width: 18 },
+    { header: 'Gender', key: 'gender', width: 12 },
+    { header: 'Trainee Address', key: 'addr', width: 40 },
+    { header: 'Trainee State', key: 'state', width: 15 },
+    { header: 'Trainee District', key: 'dist', width: 15 },
+    { header: 'PIN Code', key: 'pin', width: 10 },
+    { header: 'Contact no', key: 'contact', width: 15 },
+    { header: 'Pre Training Status', key: 'preStatus', width: 18 },
+    { header: 'Education Level', key: 'edu', width: 15 },
+    { header: 'Sector Skill Council', key: 'ssc', width: 30 },
+    { header: 'Job Role', key: 'job', width: 15 },
+    { header: 'Batch ID', key: 'batchId', width: 25 },
+    { header: 'Batch Start Date', key: 'bStart', width: 15 },
+    { header: 'Batch End Date', key: 'bEnd', width: 15 }
+];
+
+// Helper: Format Date
+function formatDate(dateStr) {
+    if (!dateStr || dateStr === "N/A" || dateStr === "-") return "-";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+}
+
+// Helper: Extract Pincode from end of address
+function extractPin(addr) {
+    if(!addr || addr === "-") return "-";
+    const match = addr.match(/\d{6}$|(\d{6})(?=\s*,?)/);
+    return match ? match[0] : "-";
+}
+
+window.onload = () => {
+    db.ref('OverallListsMetadata').once('value', snap => {
+        const sel = document.getElementById('listSelect');
+        snap.forEach(c => {
+            if(c.val().status !== 'Hide It') sel.innerHTML += `<option value="${c.key}">${c.val().listName}</option>`;
+        });
+    });
+};
+
+async function fetchTrainings(listId) {
+    const ts = document.getElementById('trainingSelect');
+    const btn = document.getElementById('downloadBtn');
+    ts.innerHTML = '<option value="">-- Select Training --</option>';
+    if(!listId) { ts.disabled = true; btn.disabled = true; return; }
+    db.ref('Trainings').orderByChild('listId').equalTo(listId).once('value', snap => {
+        snap.forEach(c => {
+            ts.innerHTML += `<option value="${c.key}" data-trade="${c.val().tradeName}">${c.val().trainingName}</option>`;
+        });
+        ts.disabled = false; btn.disabled = false;
+    });
+}
+
+// Helper: Add Sheet and Style it
+async function createWorksheet(workbook, name, data) {
+    const ws = workbook.addWorksheet(name);
+    ws.columns = vssyColumns;
+    data.forEach(row => ws.addRow(row));
+    
+    // Header Style
+    ws.getRow(1).eachCell(c => {
+        c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBE123C' } };
+        c.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+    
+    // Body Style
+    ws.eachRow(row => {
+        row.eachCell(c => {
+            c.border = { top:{style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+            c.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        });
+    });
+}
+
+async function generateZip() {
+    const listId = document.getElementById('listSelect').value;
+    const tradeName = document.getElementById('trainingSelect').options[document.getElementById('trainingSelect').selectedIndex].getAttribute('data-trade');
+
+    document.getElementById('loader').style.display = 'block';
+    const btn = document.getElementById('downloadBtn');
+    btn.disabled = true;
+
+    try {
+        const zip = new JSZip();
+        
+        // 1. Fetch Data
+        const batchesSnap = await db.ref('Batches').once('value');
+        let relevantBatches = [];
+        batchesSnap.forEach(c => {
+            if(c.val().listId === listId && c.val().trainingName === tradeName) relevantBatches.push({ id: c.key, ...c.val() });
+        });
+
+        const enrollSnap = await db.ref('BatchEnrollments').once('value');
+        const enrollments = enrollSnap.val() || {};
+        const masterSnap = await db.ref(`FullDataEntries/${listId}`).once('value');
+        const masterData = masterSnap.val() || {};
+
+        let allDataForCombined = [];
+        let globalSr = 1;
+
+        // 2. Loop Through Batches
+        for (const batch of relevantBatches) {
+            const batchMembers = enrollments[batch.id] ? Object.keys(enrollments[batch.id]) : [];
+            let batchRows = [];
+            let batchSr = 1;
+            
+            const batchNum = batch.batchName.replace(/\D/g, '').slice(-2).padStart(2, '0') || "01";
+            const formattedBatchId = `VSSY 25-26/BATCH/${batchNum}`;
+
+            batchMembers.forEach(appNo => {
+                const m = Object.values(masterData).find(x => String(x.applicationNumber) === String(appNo));
+                if(m) {
+                    const fullAddr = m.permanentAddress || m.fullAddress || "-"; // Logic correction
+                    const g = (m.gender || '').toLowerCase();
+                    const salutation = (g === 'male' || g === 'm') ? 'Mr.' : 'Mrs.';
+
+                    const row = {
+                        sn: batchSr++,
+                        tpName: 'IEDUP',
+                        centerAddr: 'UPAYUKT UDYOG RAJKIYA PRASAR EVAM PRASHIKSHAN KENDRA KOCHHABHAWAR, JHANSI UTTAR PRADESH',
+                        enrollNo: m.applicationNumber || '-',
+                        salutation: salutation,
+                        candidateName: (m.applicantName || '').toUpperCase(),
+                        gType: 'C/o',
+                        marital: m.maritalStatus || 'Unmarried',
+                        dob: formatDate(m.dob),
+                        father: (m.fatherName || '').toUpperCase(),
+                        aadhar: m.verifiedAadhar || m.aadhar || '-',
+                        gender: (g === 'male' || g === 'm') ? 'Male' : 'Female',
+                        addr: fullAddr,
+                        state: 'Uttar Pradesh',
+                        dist: 'Jhansi',
+                        pin: extractPin(fullAddr), // Logic correction
+                        contact: m.mobile || '-',
+                        preStatus: '100%',
+                        edu: 'Basic Litrate',
+                        ssc: 'Food Processing Sector Skill Council',
+                        job: 'HALWAI',
+                        batchId: formattedBatchId,
+                        bStart: formatDate(batch.startDate),
+                        bEnd: formatDate(batch.endDate)
+                    };
+                    batchRows.push(row);
+                    allDataForCombined.push({...row, sn: globalSr++});
+                }
+            });
+
+            // Add Batch Excel to Zip
+            if(batchRows.length > 0) {
+                const batchWb = new ExcelJS.Workbook();
+                await createWorksheet(batchWb, 'Data', batchRows);
+                const buffer = await batchWb.xlsx.writeBuffer();
+                zip.file(`VSSY (${tradeName}) RPL ${batch.batchName}.xlsx`, buffer);
+            }
+        }
+
+        // 3. Add Combined Excel to Zip
+        if(allDataForCombined.length > 0) {
+            const combinedWb = new ExcelJS.Workbook();
+            await createWorksheet(combinedWb, 'All Batches', allDataForCombined);
+            const combinedBuffer = await combinedWb.xlsx.writeBuffer();
+            zip.file(`VSSY (${tradeName}) ALL_BATCHES_COMBINED.xlsx`, combinedBuffer);
+        }
+
+        // 4. Download Zip
+        const zipBlob = await zip.generateAsync({type:"blob"});
+        saveAs(zipBlob, `VSSY_Reports_${tradeName.replace(/\s+/g, '_')}.zip`);
+        Swal.fire('Success', 'Bulk Export Completed!', 'success');
+
+    } catch (e) {
+        console.error(e);
+        Swal.fire('Error', 'Zip generation failed', 'error');
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+        btn.disabled = false;
+    }
+}
+</script>
+</body>
+</html>

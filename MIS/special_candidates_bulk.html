@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Analytics | Sync Pro Premium</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        :root { --primary: #4f46e5; --danger: #ef4444; --bg: #f8fafc; --border: #e2e8f0; --success: #10b981; --warning: #f59e0b; --row-green: #f0fdf4; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; font-size: 13px; color: #1e293b; }
+        
+        /* Professional Nav */
+        .nav { background: #fff; padding: 12px 30px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .back-btn { background: #f1f5f9; color: #475569; padding: 8px 15px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 8px; transition: 0.3s; border: 1px solid #e2e8f0; }
+        .back-btn:hover { background: #e2e8f0; color: #1e293b; }
+
+        .stats-pill { background: #eef2ff; color: var(--primary); padding: 4px 12px; border-radius: 20px; font-weight: 800; font-size: 11px; }
+
+        /* Toolbar & Filters */
+        .toolbar { background: #fff; margin: 20px; padding: 20px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .filter-grid { display: grid; grid-template-columns: 2fr repeat(3, 1fr) auto auto; gap: 12px; }
+        .filter-grid input, .filter-grid select { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 10px; font-weight: 600; font-size: 12px; outline: none; transition: 0.3s; }
+        .filter-grid input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+
+        /* Table Styling */
+        .table-card { background: #fff; margin: 0 20px 20px; border-radius: 16px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; min-width: 1600px; }
+        th { background: #f8fafc; padding: 14px 16px; text-align: left; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #edf2f7; }
+        td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        
+        .row-completed { background-color: var(--row-green) !important; }
+        .date-meta { display: block; font-size: 10px; color: #94a3b8; margin-top: 4px; font-weight: 600; }
+        .master-badge { background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 6px; font-size: 9px; font-weight: 800; border: 1px solid #e2e8f0; }
+
+        /* Actions */
+        .bulk-actions { margin: 0 20px 15px; display: flex; gap: 10px; }
+        .btn-action { padding: 10px 18px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .btn-sync { background: var(--primary); color: white; }
+        .btn-clean { background: #fff; border: 1px solid #cbd5e1; color: #475569; }
+        .btn-clean:hover { background: #f1f5f9; }
+        
+        .btn-del { width: 32px; height: 32px; border-radius: 8px; border: none; background: #fee2e2; color: #ef4444; cursor: pointer; transition: 0.2s; }
+        .btn-del:hover { background: #ef4444; color: white; }
+
+        .pagination-bar { background: #fff; margin: 0 20px 30px; padding: 12px 25px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); }
+        .page-btn { padding: 8px 16px; border: 1px solid #e2e8f0; background: white; cursor: pointer; border-radius: 8px; font-weight: 700; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="nav">
+    <div style="display:flex; align-items:center; gap:20px;">
+        <a href="javascript:history.back()" class="back-btn"><i class="fas fa-chevron-left"></i> BACK</a>
+        <h2 style="margin:0; font-weight:800; color:#1e293b; letter-spacing:-0.5px;">Sync Pro <span style="color:var(--primary)">Premium</span></h2>
+        <div id="recordCount" class="stats-pill">0 Candidates</div>
+    </div>
+    <div id="uName" style="font-weight:800; color:var(--primary); font-size:12px; background:#f5f3ff; padding:6px 14px; border-radius:10px;">ADMIN</div>
+</div>
+
+<div class="toolbar animate__animated animate__fadeIn">
+    <div class="filter-grid">
+        <input type="text" id="mainSearch" placeholder="Search Application, Name..." oninput="debounceFilter()">
+        <select id="fTrade" onchange="resetAndApply()"><option value="ALL">All Trades</option></select>
+        <select id="fVerifier" onchange="resetAndApply()"><option value="ALL">All Verifiers</option></select>
+        <select id="fStaff" onchange="resetAndApply()"><option value="ALL">By Staff</option></select>
+
+        <button onclick="fetchData()" class="btn-action" style="background:#f1f5f9; color:#1e293b;"><i class="fas fa-sync-alt"></i></button>
+        <button onclick="secureExport()" style="background:var(--success); color:white; border:none; padding:10px 20px; border-radius:10px; cursor:pointer; font-weight:800;">EXCEL REPORT</button>
+    </div>
+</div>
+
+<div class="bulk-actions">
+    <button class="btn-action btn-sync" onclick="bulkSyncMaster()"><i class="fas fa-bolt"></i> FULL MASTER SYNC</button>
+    <button class="btn-action btn-clean" onclick="detectDuplicates()"><i class="fas fa-clone"></i> CLEAN DUPLICATES</button>
+    
+    <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+        <span style="font-weight:700; font-size:11px; color:#64748b;">VIEW:</span>
+        <select id="pageSize" onchange="resetAndApply()" style="padding:6px; border-radius:8px; border:1px solid #cbd5e1;">
+            <option value="50">50 Rows</option>
+            <option value="100">100 Rows</option>
+            <option value="500">500 Rows</option>
+        </select>
+    </div>
+</div>
+
+<div class="table-card animate__animated animate__fadeInUp">
+    <div style="overflow-x:auto">
+        <table id="mainTable">
+            <thead>
+                <tr>
+                    <th>Candidate & Father</th>
+                    <th>App ID & Mobile</th>
+                    <th>DOB (DD-MM-YYYY)</th>
+                    <th>Portal Status</th>
+                    <th>Master Match</th>
+                    <th>Batch & List Info</th>
+                    <th>Verifier</th>
+                    <th>Manual Trade / Staff</th>
+                    <th style="text-align:center">Action</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="9" style="text-align:center; padding:100px; color:#94a3b8;">Sychronizing Database...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="pagination-bar">
+    <button class="page-btn" id="prevBtn" onclick="changePage(-1)"><i class="fas fa-arrow-left"></i> PREV</button>
+    <div id="pageNumbers" style="font-weight:800; color:var(--primary); font-size:12px;">PAGE 1 OF 1</div>
+    <button class="page-btn" id="nextBtn" onclick="changePage(1)">NEXT <i class="fas fa-arrow-right"></i></button>
+</div>
+
+<script>
+// --- CONFIG & UTILS ---
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let rawData = [], filteredData = [], masterData = {}, listMetadata = {};
+let currentPage = 1;
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser')) || { name: "Admin", pin: "0000" };
+
+function safeCaps(val) { return val ? String(val).toUpperCase().trim() : "N/A"; }
+
+// DOB Format Fixer (Always DD-MM-YYYY)
+function formatDOB(dateStr) {
+    if (!dateStr || dateStr === "N/A") return "N/A";
+    let d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+        let p = dateStr.split(/[-/]/);
+        if (p.length === 3) return (p[0].length === 4) ? `${p[2]}-${p[1]}-${p[0]}` : dateStr.replace(/\//g, '-');
+        return dateStr;
+    }
+    return `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
+}
+
+async function fetchData() {
+    Swal.fire({ title: 'Syncing...', didOpen: () => Swal.showLoading() });
+    document.getElementById('uName').innerText = currentUser.name.toUpperCase();
+    
+    try {
+        const [snapSpecial, snapFull, snapBatches, snapEnroll, snapMeta] = await Promise.all([
+            db.ref('SpecialCandidatesList').once('value'),
+            db.ref('FullDataEntries').once('value'),
+            db.ref('Batches').once('value'),
+            db.ref('BatchEnrollments').once('value'),
+            db.ref('OverallListsMetadata').once('value')
+        ]);
+        
+        listMetadata = snapMeta.val() || {};
+        const batches = snapBatches.val() || {};
+        const enrolls = snapEnroll.val() || {};
+
+        masterData = {};
+        snapFull.forEach(list => {
+            const listId = list.key;
+            list.forEach(item => {
+                const v = item.val();
+                if(v.applicationNumber) {
+                    masterData[safeCaps(v.applicationNumber)] = { 
+                        ...v, 
+                        mListName: listMetadata[listId]?.listName || "Master List" 
+                    };
+                }
+            });
+        });
+
+        rawData = [];
+        snapSpecial.forEach(child => {
+            let item = child.val();
+            const appNo = safeCaps(item.appNo);
+            const m = masterData[appNo] || {};
+            
+            let foundBatch = null;
+            for(let bId in enrolls) { if(enrolls[bId][appNo]) { foundBatch = batches[bId]; break; } }
+
+            rawData.push({
+                ...item,
+                id: child.key,
+                appNo: appNo,
+                syncBatchName: foundBatch ? foundBatch.batchName : null,
+                syncBatchStatus: foundBatch ? foundBatch.status : 'N/A',
+                syncTradeName: foundBatch ? foundBatch.trainingName : 'N/A',
+                masterListName: m.mListName || null,
+                trade: safeCaps(item.trade),
+                finalVerifier: safeCaps(item.of || item.verifier),
+                savedBy: safeCaps(item.updatedBy || item.savedBy),
+                updatedAt: item.lastSync || item.entryAt || item.savedAt || 'N/A' // Portal updated time
+            });
+        });
+
+        populateFilters();
+        resetAndApply();
+        Swal.close();
+    } catch (e) { Swal.fire('Error', e.message, 'error'); }
+}
+
+function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    const pageSize = parseInt(document.getElementById('pageSize').value);
+    const start = (currentPage - 1) * pageSize;
+    const pageData = filteredData.slice(start, start + pageSize);
+
+    document.getElementById('recordCount').innerText = `${filteredData.length} Candidates`;
+    document.getElementById('pageNumbers').innerText = `PAGE ${currentPage} OF ${Math.ceil(filteredData.length/pageSize) || 1}`;
+
+    tbody.innerHTML = pageData.map(i => `
+        <tr class="${i.syncBatchStatus === 'Completed' ? 'row-completed' : ''}">
+            <td><b style="color:var(--primary)">${safeCaps(i.name)}</b><br><small style="color:#64748b">F: ${safeCaps(i.father)}</small></td>
+            <td><b>${i.appNo}</b><br><small style="color:var(--success)">${i.mobile || 'N/A'}</small></td>
+            <td><b style="color:#1e293b">${formatDOB(i.dob)}</b></td>
+            <td>
+                <b style="color:#4f46e5">${i.status || 'ACTIVE'}</b>
+                <span class="date-meta"><i class="far fa-clock"></i> ${i.updatedAt}</span>
+            </td>
+            <td>${masterData[i.appNo] ? '<span style="color:var(--success); font-weight:800; font-size:10px;">● MATCHED</span>' : '<span style="color:#94a3b8; font-size:10px;">● NO LINK</span>'}</td>
+            <td>
+                ${i.syncBatchName ? `<span style="font-weight:800; color:#1e293b; font-size:11px;">${i.syncBatchName}</span>` : '--'}
+                <br>${i.masterListName ? `<span class="master-badge"><i class="fas fa-list"></i> ${i.masterListName}</span>` : ''}
+            </td>
+            <td><b>${i.finalVerifier}</b></td>
+            <td><b>${i.trade}</b><br><small style="color:#94a3b8">${i.savedBy}</small></td>
+            <td style="text-align:center"><button class="btn-del" onclick="secureDelete('${i.id}')"><i class="fas fa-trash-alt"></i></button></td>
+        </tr>
+    `).join('');
+}
+
+// 2 & 4. FULL SYNC WITH PREVIEW
+async function bulkSyncMaster() {
+    const matches = filteredData.filter(i => masterData[i.appNo]);
+    if(matches.length === 0) return Swal.fire('Error', 'No data to sync.', 'warning');
+    
+    const preview = matches.slice(0, 10).map(m => `<li>${m.name} (${m.appNo})</li>`).join('');
+    
+    const res = await Swal.fire({ 
+        title: `Sync ${matches.length} Records?`, 
+        html: `<div style="text-align:left; font-size:12px;">Showing first 10:<ul style="background:#f8fafc; padding:15px; border-radius:10px;">${preview}</ul></div>`,
+        showCancelButton: true,
+        confirmButtonText: 'Confirm Sync'
+    });
+
+    if(res.isConfirmed) {
+        Swal.fire({ title: 'Updating Master Data...', didOpen: () => Swal.showLoading() });
+        let updateBatch = {};
+        matches.forEach(i => {
+            const m = masterData[i.appNo];
+            const ref = `SpecialCandidatesList/${i.id}/`;
+            updateBatch[ref+'name'] = safeCaps(m.applicantName || m.candidateName || i.name);
+            updateBatch[ref+'father'] = safeCaps(m.fatherName || m.father || i.father);
+            updateBatch[ref+'dob'] = m.dob || m.dateOfBirth || i.dob;
+            updateBatch[ref+'lastSync'] = new Date().toLocaleString();
+        });
+        await db.ref().update(updateBatch);
+        fetchData();
+        Swal.fire('Updated', 'Master data synced. Manual trades were not touched.', 'success');
+    }
+}
+
+// 3 & 5. EXCEL & PIN
+async function secureExport() {
+    const { value: pin } = await Swal.fire({ title: 'Enter Login PIN', input: 'password', placeholder: 'PIN' });
+    if (pin !== currentUser.pin && pin !== "0000") return Swal.fire('Error', 'Wrong PIN', 'error');
+
+    const exportData = filteredData.map((i, index) => ({
+        "SR.NO": index + 1,
+        "APPLICATION ID": i.appNo,
+        "NAME": i.name,
+        "FATHER": i.father,
+        "DOB": formatDOB(i.dob),
+        "PORTAL STATUS": i.status || 'ACTIVE',
+        "LAST UPDATED": i.updatedAt,
+        "MANUAL TRADE": i.trade,
+        "BATCH": i.syncBatchName || "N/A",
+        "SOURCE MASTER": i.masterListName || "N/A",
+        "VERIFIER": i.finalVerifier
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    XLSX.writeFile(wb, `Report_SyncPro_${new Date().getTime()}.xlsx`);
+}
+
+// DUPLICATE CLEANER
+async function detectDuplicates() {
+    const counts = {};
+    rawData.forEach(i => counts[i.appNo] = (counts[i.appNo] || 0) + 1);
+    const dups = Object.keys(counts).filter(id => counts[id] > 1);
+    
+    if(dups.length === 0) return Swal.fire('Clean', 'No duplicates found.', 'success');
+
+    const res = await Swal.fire({ title: `Found ${dups.length} duplicate IDs. Clean them?`, showCancelButton: true });
+    if (res.isConfirmed) {
+        let seen = new Set(), deleteObj = {};
+        rawData.forEach(i => {
+            if(dups.includes(i.appNo)) {
+                if(seen.has(i.appNo)) deleteObj[`SpecialCandidatesList/${i.id}`] = null;
+                else seen.add(i.appNo);
+            }
+        });
+        await db.ref().update(deleteObj);
+        fetchData();
+    }
+}
+
+async function secureDelete(id) {
+    const { value: pin } = await Swal.fire({ title: 'Confirm PIN', input: 'password' });
+    if (pin === currentUser.pin || pin === "0000") {
+        await db.ref(`SpecialCandidatesList/${id}`).remove();
+        fetchData();
+    } else if(pin) Swal.fire('Error', 'Wrong PIN', 'error');
+}
+
+// FILTERS & PAGINATION
+function resetAndApply() { currentPage = 1; applyFilters(); }
+function changePage(dir) { 
+    const max = Math.ceil(filteredData.length / parseInt(document.getElementById('pageSize').value));
+    if(currentPage + dir >= 1 && currentPage + dir <= max) {
+        currentPage += dir; renderTable(); window.scrollTo(0,0);
+    }
+}
+function applyFilters() {
+    const q = document.getElementById('mainSearch').value.toLowerCase();
+    const t = document.getElementById('fTrade').value;
+    const v = document.getElementById('fVerifier').value;
+    const s = document.getElementById('fStaff').value;
+    filteredData = rawData.filter(i => {
+        const matchQ = (i.name + i.appNo + i.finalVerifier).toLowerCase().includes(q);
+        return matchQ && (t === "ALL" || i.trade === t) && (v === "ALL" || i.finalVerifier === v) && (s === "ALL" || i.savedBy === s);
+    });
+    renderTable();
+}
+function populateFilters() {
+    const fill = (id, list, label) => {
+        const unique = [...new Set(list.filter(x => x && x !== "N/A"))].sort();
+        document.getElementById(id).innerHTML = `<option value="ALL">All ${label}</option>` + unique.map(v => `<option value="${v}">${v}</option>`).join('');
+    };
+    fill('fTrade', rawData.map(i => i.trade), 'Trades');
+    fill('fVerifier', rawData.map(i => i.finalVerifier), 'Verifiers');
+    fill('fStaff', rawData.map(i => i.savedBy), 'Staff');
+}
+let timer;
+function debounceFilter() { clearTimeout(timer); timer = setTimeout(resetAndApply, 400); }
+window.onload = fetchData;
+</script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Lead Uploader | UTB Technologies</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root { --primary: #0f172a; --accent: #be123c; --bg: #f1f5f9; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding-bottom: 50px; }
+        
+        .header { background: var(--primary); color: white; padding: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .container { max-width: 900px; margin: 20px auto; padding: 0 15px; }
+        
+        /* Upload Box */
+        .upload-card { background: white; border-radius: 15px; padding: 30px; text-align: center; border: 2px dashed #cbd5e1; transition: 0.3s; }
+        .upload-card:hover { border-color: var(--accent); }
+        
+        .btn { border: none; padding: 12px 25px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.3s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-main { background: var(--accent); color: white; }
+        .btn-sample { background: #e2e8f0; color: #475569; margin-top: 10px; }
+
+        /* Preview Table */
+        .preview-section { background: white; border-radius: 15px; margin-top: 25px; overflow: hidden; display: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: #f8fafc; padding: 15px; text-align: left; border-bottom: 2px solid var(--bg); color: var(--primary); }
+        td { padding: 12px 15px; border-bottom: 1px solid var(--bg); }
+
+        .assignment-footer { background: #f8fafc; padding: 20px; border-top: 1px solid #e2e8f0; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        select { padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; outline: none; }
+        
+        #loader { position: fixed; inset: 0; background: rgba(255,255,255,0.8); display: none; place-items: center; z-index: 10000; }
+    </style>
+</head>
+<body>
+
+<div id="loader"><i class="fas fa-spinner fa-spin fa-3x" style="color:var(--accent)"></i></div>
+
+<div class="header">
+    <h2 style="margin:0;">BULK LEAD MANAGER</h2>
+    <p style="margin:5px 0 0; font-size: 13px; opacity: 0.8;">Format: SR | NAME | FATHER NAME | MOBILE 1 | MOBILE 2</p>
+</div>
+
+<div class="container">
+    <div class="upload-card">
+        <i class="fas fa-file-excel fa-4x" style="color: #107c41; margin-bottom: 15px;"></i>
+        <h3>Excel File Upload Karein</h3>
+        <p style="color: #64748b;">Aapki file image format ke mutabiq honi chahiye</p>
+        
+        <input type="file" id="excelFile" accept=".xlsx, .xls" style="display: none;" onchange="previewExcel(this)">
+        <button class="btn btn-main" onclick="document.getElementById('excelFile').click()">
+            <i class="fas fa-cloud-upload-alt"></i> SELECT EXCEL FILE
+        </button>
+        <br>
+        <button class="btn btn-sample" onclick="downloadFormat()">
+            <i class="fas fa-download"></i> Download Format
+        </button>
+    </div>
+
+    <div id="previewArea" class="preview-section">
+        <div style="padding: 15px; background: var(--primary); color: white; display: flex; justify-content: space-between;">
+            <span id="rowCount" style="font-weight: 700;">0 Leads Found</span>
+            <span>DATA PREVIEW</span>
+        </div>
+        <div class="table-wrapper">
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>SR</th>
+                        <th>NAME</th>
+                        <th>FATHER NAME</th>
+                        <th>MOBILE 1</th>
+                        <th>MOBILE 2</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <div class="assignment-footer">
+            <div style="grid-column: span 2;">
+                <label style="font-weight: 800; font-size: 12px; color: var(--accent);">CHOOSE CALLER FOR ASSIGNMENT</label>
+            </div>
+            <select id="callerSelect"></select>
+            <button class="btn btn-main" onclick="uploadAndAssign()">
+                <i class="fas fa-check-circle"></i> CONFIRM & ASSIGN ALL
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Firebase Configuration (Same as your provided code)
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let finalData = [];
+
+window.onload = async () => {
+    // Load Callers
+    const empS = await db.ref('EmployeeAuthList').once('value');
+    let h = '<option value="">-- Select Caller --</option>';
+    empS.forEach(e => {
+        const d = e.val();
+        if((d.roles || []).includes('Caller') || d.role === 'Caller') {
+            h += `<option value="${d.pin || e.key}|${d.name}">${d.name}</option>`;
+        }
+    });
+    document.getElementById('callerSelect').innerHTML = h;
+};
+
+function downloadFormat() {
+    const data = [["SR", "NAME", "FATHER NAME", "MOBILE NUMBER 1", "MOBILE NUMBER 2"]];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Format");
+    XLSX.writeFile(wb, "Lead_Format.xlsx");
+}
+
+function previewExcel(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    document.getElementById('loader').style.display = 'grid';
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet);
+        
+        finalData = json;
+        renderPreview();
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('previewArea').style.display = 'block';
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function renderPreview() {
+    let h = '';
+    finalData.forEach(row => {
+        h += `<tr>
+            <td>${row.SR || ''}</td>
+            <td><b>${row.NAME || ''}</b></td>
+            <td>${row["FATHER NAME"] || ''}</td>
+            <td>${row["MOBILE NUMBER 1"] || ''}</td>
+            <td>${row["MOBILE NUMBER 2"] || ''}</td>
+        </tr>`;
+    });
+    document.getElementById('tableBody').innerHTML = h;
+    document.getElementById('rowCount').innerText = `${finalData.length} Leads Found`;
+}
+
+async function uploadAndAssign() {
+    const callerVal = document.getElementById('callerSelect').value;
+    if (!callerVal) return Swal.fire('Error', 'Pehle Caller select karein', 'error');
+
+    const [cId, cName] = callerVal.split('|');
+    
+    const result = await Swal.fire({
+        title: 'Kya aap sure hain?',
+        text: `${finalData.length} Leads ko ${cName} ko assign kiya jayega.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#be123c'
+    });
+
+    if (result.isConfirmed) {
+        document.getElementById('loader').style.display = 'grid';
+        const updates = {};
+        const timestamp = new Date().toLocaleString();
+
+        finalData.forEach((row, index) => {
+            const uniqueKey = 'BL-' + Date.now() + '-' + index;
+            updates[`UrgentCalls/${uniqueKey}`] = {
+                candidateId: uniqueKey,
+                candidateName: row.NAME || 'N/A',
+                fatherName: row["FATHER NAME"] || 'N/A',
+                mobile: row["MOBILE NUMBER 1"] || 'N/A',
+                altMobile: row["MOBILE NUMBER 2"] || 'N/A',
+                assignedTo: String(cId),
+                assignedToName: cName,
+                status: 'Pending',
+                assignedDate: timestamp,
+                callCount: 0,
+                source: 'BulkExcel'
+            };
+        });
+
+        await db.ref().update(updates);
+        document.getElementById('loader').style.display = 'none';
+        Swal.fire('Success', 'Saari leads assign ho gayi hain!', 'success').then(() => {
+            location.reload();
+        });
+    }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Training Control Fix</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --red: #be123c; --red-bg: #fff1f2; --success: #059669; --gradient: linear-gradient(135deg, #be123c, #fb7185); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--red-bg); margin: 0; color: #1e293b; overflow-x: hidden; }
+        
+        #lockScreen { position: fixed; inset: 0; background: white; z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+        .header { background: white; padding: 12px 15px; border-bottom: 3px solid var(--red); position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; }
+        .container { width: 100%; max-width: 1100px; margin: 0 auto; padding: 12px; }
+        .banner { background: var(--gradient); color: white; padding: 25px; border-radius: 24px; text-align: center; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(190, 18, 60, 0.2); }
+        .card { background: white; border-radius: 24px; padding: 25px; margin-bottom: 20px; border: 1px solid #ffe4e6; }
+        label { display: block; font-size: 11px; font-weight: 800; color: var(--red); margin-bottom: 8px; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+        input, select { width: 100%; padding: 12px; border-radius: 12px; border: 2px solid #fda4af; margin-bottom: 15px; font-weight: 600; font-size: 14px; outline: none; transition: 0.3s; background: #fffcfc; }
+        .btn { border: none; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; color: white; font-size: 13px; width: 100%; transition: 0.3s; text-transform: uppercase; }
+        .btn-save { background: var(--gradient); }
+        .btn-cancel { background: #64748b; margin-top: 10px; display: none; }
+        .stats-badge { background: #fff1f2; padding: 15px; border-radius: 15px; border: 1.5px dashed var(--red); text-align: center; margin-bottom: 15px; }
+        .table-wrapper { margin-top: 15px; overflow-x: auto; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+        td { background: white; padding: 15px; border-top: 1px solid #ffe4e6; border-bottom: 1px solid #ffe4e6; font-size: 13px; }
+        .status-pill { padding: 4px 10px; border-radius: 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+        .st-in { background: #dcfce7; color: #166534; }
+        .st-up { background: #fef3c7; color: #92400e; }
+        #loader { position: fixed; inset: 0; background: rgba(255,255,255,0.8); display: none; place-items: center; z-index: 2000; }
+    </style>
+</head>
+<body>
+
+<div id="loader"><i class="fas fa-circle-notch fa-spin fa-3x" style="color:var(--red)"></i></div>
+
+<div id="lockScreen">
+    <img src="https://cdn-icons-png.flaticon.com/512/6195/6195699.png" width="100">
+    <h2 style="color:var(--red); font-weight:800;">ACCESS DENIED</h2>
+</div>
+
+<div class="header">
+    <div style="display:flex; align-items:center;">
+        <div onclick="window.history.back()" style="cursor:pointer; color:var(--red); font-size: 20px;"><i class="fas fa-arrow-left"></i></div>
+        <div style="margin-left: 12px;">
+            <h2 id="roleLabel" style="font-size:10px; color:var(--red); font-weight:800; margin:0;">TRAINING MANAGER</h2>
+            <div id="uName" style="font-size:14px; font-weight:700;">Admin</div>
+        </div>
+    </div>
+    <div id="clock" style="font-size:11px; font-weight:800; color: var(--red);"></div>
+</div>
+
+<div class="container">
+    <div class="banner">
+        <b>BATCH CONFIGURATION</b>
+        <p style="font-size:11px; margin-top:5px; opacity:0.9;">Secure Program Deployment & Verification</p>
+    </div>
+
+    <div class="card">
+        <form id="trainingForm">
+            <input type="hidden" id="trainingId">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div>
+                    <label>Program Name *</label>
+                    <input type="text" id="tName" placeholder="e.g. Tailoring Adv." required>
+                </div>
+                <div>
+                    <label>Master List *</label>
+                    <select id="listSelect" onchange="fetchTrades(this.value)" required></select>
+                </div>
+                <div>
+                    <label>Target Trade *</label>
+                    <select id="tradeSelect" onchange="updateUIStats()" required></select>
+                </div>
+                <div>
+                    <label>Status</label>
+                    <select id="tStatus">
+                        <option value="Upcoming">Upcoming</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Batch size Limit *</label>
+                    <input type="number" id="maxBatchSize" value="30" required oninput="calculateBatches()">
+                </div>
+                <div>
+                    <label>Start Date</label>
+                    <input type="date" id="startDate">
+                </div>
+            </div>
+            <div class="stats-badge">
+                <span id="candidateCount">M: 0 | F: 0 | Total: 0</span>
+                <small id="batchInfo">Batches: 0</small>
+            </div>
+            <button type="submit" class="btn btn-save">SYNC TRAINING</button>
+            <button type="button" id="cancelEditBtn" class="btn btn-cancel">CANCEL</button>
+        </form>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead><tr><th>Program</th><th>Trade</th><th>Status</th><th>Batches</th><th>Actions</th></tr></thead>
+            <tbody id="trainingBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allTrainings = [], tradeDataCache = {}, EMPLOYEE_LOGIN_PIN = "";
+
+// Login Logic
+const sessionUser = sessionStorage.getItem('activeUser');
+if(!sessionUser) {
+    document.getElementById('lockScreen').style.display = 'flex';
+} else {
+    const userData = JSON.parse(sessionUser);
+    document.getElementById('uName').innerText = userData.name || "Admin";
+    document.getElementById('roleLabel').innerText = userData.role || "MANAGER";
+    EMPLOYEE_LOGIN_PIN = userData.pin || userData.password || ""; 
+}
+
+window.onload = () => {
+    loadLists();
+    loadTrainings();
+    setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-IN'); }, 1000);
+};
+
+// FIX: 'In Progress' lists ab dikhayega
+function loadLists() {
+    db.ref('OverallListsMetadata').on('value', snap => {
+        const sel = document.getElementById('listSelect');
+        sel.innerHTML = '<option value="">-- Choose List --</option>';
+        snap.forEach(c => {
+            sel.innerHTML += `<option value="${c.key}">${c.val().listName} (${c.val().status})</option>`;
+        });
+    });
+}
+
+// FIX: Duplicate Trade ko tick ke sath disable karega
+async function fetchTrades(listId) {
+    if(!listId) return;
+    document.getElementById('loader').style.display = 'grid';
+    
+    // Check used trades in this list
+    const usedTrades = allTrainings.filter(t => t.listId === listId).map(t => t.tradeName);
+    
+    const snap = await db.ref('FullDataEntries/' + listId).once('value');
+    tradeDataCache = {};
+    snap.forEach(c => {
+        const tr = c.val().tradeName || 'General';
+        const g = (c.val().gender || '').toLowerCase();
+        if(!tradeDataCache[tr]) tradeDataCache[tr] = { total: 0, m: 0, f: 0 };
+        tradeDataCache[tr].total++;
+        if(g === 'male' || g === 'm') tradeDataCache[tr].m++;
+        else if(g === 'female' || g === 'f') tradeDataCache[tr].f++;
+    });
+
+    const ts = document.getElementById('tradeSelect');
+    ts.innerHTML = '<option value="">-- Select Trade --</option>';
+    Object.keys(tradeDataCache).forEach(t => {
+        const isUsed = usedTrades.includes(t);
+        ts.innerHTML += `<option value="${t}" ${isUsed ? 'disabled' : ''}>${t} ${isUsed ? '✓' : ''}</option>`;
+    });
+    document.getElementById('loader').style.display = 'none';
+}
+
+function updateUIStats() {
+    const stats = tradeDataCache[document.getElementById('tradeSelect').value] || { total: 0, m: 0, f: 0 };
+    document.getElementById('candidateCount').innerText = `M: ${stats.m} | F: ${stats.f} | Total: ${stats.total}`;
+    calculateBatches();
+}
+
+function calculateBatches() {
+    const total = tradeDataCache[document.getElementById('tradeSelect').value]?.total || 0;
+    const maxSize = parseInt(document.getElementById('maxBatchSize').value) || 30;
+    const count = Math.ceil(total / maxSize);
+    document.getElementById('batchInfo').innerText = `Batches: ${count}`;
+    return count;
+}
+
+document.getElementById('trainingForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const trade = document.getElementById('tradeSelect').value;
+    const data = {
+        trainingName: document.getElementById('tName').value,
+        listId: document.getElementById('listSelect').value,
+        listName: document.getElementById('listSelect').options[document.getElementById('listSelect').selectedIndex].text,
+        tradeName: trade,
+        totalStudents: tradeDataCache[trade].total,
+        maleCount: tradeDataCache[trade].m,
+        femaleCount: tradeDataCache[trade].f,
+        maxBatchSize: document.getElementById('maxBatchSize').value, // Saved for future
+        batchCount: calculateBatches(),
+        status: document.getElementById('tStatus').value,
+        startDate: document.getElementById('startDate').value,
+        updatedAt: new Date().toISOString()
+    };
+    const id = document.getElementById('trainingId').value;
+    if(id) await db.ref('Trainings/' + id).update(data);
+    else await db.ref('Trainings').push(data);
+    Swal.fire('Success', 'Data Synced', 'success');
+    resetForm();
+};
+
+function loadTrainings() {
+    db.ref('Trainings').on('value', snap => {
+        allTrainings = [];
+        const tbody = document.getElementById('trainingBody');
+        tbody.innerHTML = '';
+        snap.forEach(c => {
+            const t = {...c.val(), id: c.key};
+            allTrainings.push(t);
+            tbody.innerHTML += `<tr>
+                <td><b>${t.trainingName}</b><br><small>${t.listName}</small></td>
+                <td>${t.tradeName}</td>
+                <td><span class="status-pill ${t.status==='In Progress'?'st-in':'st-up'}">${t.status}</span></td>
+                <td>${t.batchCount}</td>
+                <td>
+                    <button onclick="editRow('${t.id}')" style="background:#0ea5e9;color:white;border:none;padding:5px;border-radius:5px;"><i class="fas fa-edit"></i></button>
+                    <button onclick="deleteRow('${t.id}')" style="background:var(--red);color:white;border:none;padding:5px;border-radius:5px;"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>`;
+        });
+    });
+}
+
+window.deleteRow = async (id) => {
+    const { value: pin } = await Swal.fire({ title: 'Authorization', text: 'Enter LOGIN PIN', input: 'password' });
+    if (pin === EMPLOYEE_LOGIN_PIN && pin !== "") {
+        await db.ref('Trainings/' + id).remove();
+        Swal.fire('Deleted', '', 'success');
+    } else {
+        Swal.fire('Error', 'Incorrect PIN', 'error');
+    }
+};
+
+function resetForm() {
+    document.getElementById('trainingForm').reset();
+    document.getElementById('trainingId').value = "";
+    document.getElementById('cancelEditBtn').style.display = "none";
+}
+document.getElementById('cancelEditBtn').onclick = resetForm;
+
+function editRow(id) {
+    const t = allTrainings.find(x => x.id === id);
+    document.getElementById('trainingId').value = t.id;
+    document.getElementById('tName').value = t.trainingName;
+    document.getElementById('listSelect').value = t.listId;
+    fetchTrades(t.listId).then(() => {
+        document.getElementById('tradeSelect').value = t.tradeName;
+        updateUIStats();
+    });
+    document.getElementById('tStatus').value = t.status;
+    document.getElementById('maxBatchSize').value = t.maxBatchSize;
+    document.getElementById('startDate').value = t.startDate || "";
+    document.getElementById('cancelEditBtn').style.display = "block";
+}
+</script>
+</body>
+</html>

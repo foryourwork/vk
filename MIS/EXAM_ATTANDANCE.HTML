@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VKETC Smart Sync | V8</title>
+    
+    <script>
+        (function() {
+            const user = JSON.parse(sessionStorage.getItem('activeUser'));
+            if (!user) { window.location.href = "login.html"; return; }
+        })();
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #fb7185; --secondary: #e11d48; --dark: #1e293b; --glass: rgba(255, 255, 255, 0.9); }
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%); 
+            margin: 0; color: var(--dark); 
+            min-height: 100vh;
+        }
+
+        .header { 
+            background: var(--glass); backdrop-filter: blur(10px);
+            padding: 15px 20px; border-bottom: 2px solid rgba(225, 29, 72, 0.1);
+            position: sticky; top: 0; z-index: 1000; 
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        .container { width: 95%; max-width: 800px; margin: 0 auto; padding-bottom: 50px; }
+
+        .glass-card { 
+            background: var(--glass); border-radius: 28px; padding: 20px; 
+            margin-top: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+            border: 1px solid white;
+        }
+
+        label { font-size: 11px; font-weight: 800; color: var(--secondary); text-transform: uppercase; margin: 12px 0 6px 5px; display: block; letter-spacing: 0.5px; }
+        
+        select, input { 
+            width: 100%; padding: 14px; border-radius: 16px; 
+            border: 2px solid #f1f5f9; font-weight: 600; outline: none; 
+            background: #f8fafc; transition: 0.3s; font-size: 14px;
+        }
+        select:focus { border-color: var(--secondary); background: white; }
+
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+        .stat-box { 
+            padding: 18px; border-radius: 22px; text-align: center; color: white;
+            transition: transform 0.3s;
+        }
+        .stat-box:active { transform: scale(0.95); }
+        .stat-p { background: linear-gradient(135deg, #10b981, #059669); }
+        .stat-a { background: linear-gradient(135deg, #fb7185, #e11d48); }
+        .stat-num { font-size: 28px; font-weight: 800; display: block; }
+        .stat-txt { font-size: 10px; font-weight: 600; text-transform: uppercase; opacity: 0.9; }
+
+        .btn-main { 
+            background: var(--dark); color: white; width: 100%; padding: 16px; 
+            border-radius: 18px; border: none; font-weight: 800; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-top: 10px; transition: 0.3s; font-size: 14px;
+        }
+        .btn-main:hover { opacity: 0.9; }
+        .btn-secondary { background: white; color: var(--secondary); border: 2px solid var(--secondary); }
+
+        .candidate-card { 
+            background: white; padding: 18px; border-radius: 22px; margin-bottom: 12px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02); border: 1px solid #f1f5f9;
+        }
+        .cand-info b { font-size: 16px; display: block; color: var(--dark); }
+        .cand-info span { font-size: 12px; color: #64748b; }
+        .time-tag { font-size: 10px; color: #10b981; font-weight: 800; display: block; margin-top: 4px; }
+
+        .mark-btn { 
+            padding: 10px 20px; border-radius: 14px; border: none; 
+            font-weight: 800; cursor: pointer; transition: 0.3s;
+            background: #f1f5f9; color: #94a3b8; font-size: 12px;
+        }
+        .mark-btn.active { background: #10b981; color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+
+        #pgArea { display: flex; overflow-x: auto; gap: 8px; padding: 10px 0; }
+        #pgArea button { padding: 8px 14px; border-radius: 10px; border: none; background: white; font-weight: 700; flex-shrink: 0; }
+
+        @media (max-width: 480px) {
+            .stats-row { gap: 10px; }
+            .stat-num { font-size: 22px; }
+            .candidate-card { padding: 14px; }
+            .cand-info b { font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex; align-items:center;">
+        <div style="width:40px; height:40px; background:var(--secondary); border-radius:12px; display:grid; place-items:center; color:white; margin-right:12px;">
+            <i class="fas fa-calendar-check"></i>
+        </div>
+        <div>
+            <h2 style="margin:0; font-size:16px; font-weight:800; color:var(--dark)">ATTENDANCE SYNC</h2>
+            <div id="uName" style="font-size:11px; font-weight:600; color:var(--secondary)">Loading...</div>
+        </div>
+    </div>
+    <i class="fas fa-power-off" onclick="sessionStorage.clear(); location.reload();" style="color:var(--secondary); font-size:20px; cursor:pointer;"></i>
+</div>
+
+<div class="container">
+    <div class="glass-card animate__animated animate__fadeInDown">
+        <label>Data Filter</label>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <select id="listSel" onchange="loadTrades()"></select>
+            <select id="tradeSel" onchange="loadBatches()"></select>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:10px; margin-top:10px;">
+            <select id="batchSel" onchange="loadCandidates(1)"></select>
+            <input type="date" id="attDate" onchange="loadCandidates(1)">
+        </div>
+
+        <div class="stats-row">
+            <div class="stat-box stat-p">
+                <span id="pCount" class="stat-num">0</span>
+                <span class="stat-txt">Present Today</span>
+            </div>
+            <div class="stat-box stat-a">
+                <span id="aCount" class="stat-num">0</span>
+                <span class="stat-txt">Absent Today</span>
+            </div>
+        </div>
+
+        <button class="btn-main" onclick="downloadMasterReport()"><i class="fas fa-file-export"></i> DOWNLOAD MASTER LIST REPORT</button>
+        <button class="btn-main btn-secondary" onclick="secureExcelDownload()"><i class="fas fa-file-excel"></i> DOWNLOAD BATCH REPORT</button>
+    </div>
+
+    <div id="candidateArea" style="margin-top:20px;"></div>
+    <div id="pgArea"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allCands = [], activeEmp = {}, attendanceMap = {}, allBatches = [];
+
+window.onload = () => {
+    activeEmp = JSON.parse(sessionStorage.getItem('activeUser'));
+    document.getElementById('uName').innerText = `${activeEmp.role} | ${activeEmp.name}`;
+    document.getElementById('attDate').valueAsDate = new Date();
+
+    db.ref('OverallListsMetadata').once('value', s => {
+        const sel = document.getElementById('listSel');
+        sel.innerHTML = '<option value="">Select List</option>';
+        s.forEach(c => { if(c.val().status !== 'Hide It') sel.innerHTML += `<option value="${c.key}">${c.val().listName}</option>`; });
+    });
+};
+
+function loadTrades() {
+    const lid = document.getElementById('listSel').value;
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        const sel = document.getElementById('tradeSel');
+        sel.innerHTML = '<option value="">Trade</option>';
+        s.forEach(c => { sel.innerHTML += `<option value="${c.val().tradeName}">${c.val().trainingName}</option>`; });
+    });
+}
+
+function loadBatches() {
+    const trade = document.getElementById('tradeSel').value;
+    db.ref('Batches').once('value', s => {
+        const sel = document.getElementById('batchSel');
+        allBatches = [];
+        sel.innerHTML = '<option value="">Select Batch</option>';
+        s.forEach(c => {
+            const b = c.val();
+            const status = b.status || b.batchStatus;
+            if(b.trainingName === trade && (status === 'In Progress' || status === 'Completed')) {
+                allBatches.push({id: c.key, name: b.batchName});
+                sel.innerHTML += `<option value="${c.key}">${b.batchName}</option>`;
+            }
+        });
+    });
+}
+
+async function loadCandidates(pg) {
+    const bid = document.getElementById('batchSel').value;
+    const lid = document.getElementById('listSel').value;
+    const date = document.getElementById('attDate').value;
+    if(!bid || !lid || !date) return;
+
+    Swal.fire({ title: 'Syncing...', didOpen: () => Swal.showLoading(), background: 'rgba(255,255,255,0.9)' });
+
+    const [enrollS, masterS, attS] = await Promise.all([
+        db.ref(`BatchEnrollments/${bid}`).once('value'),
+        db.ref(`FullDataEntries/${lid}`).once('value'),
+        db.ref(`AttendanceData/${bid}/${date}`).once('value')
+    ]);
+
+    allCands = [];
+    attendanceMap = attS.val() || {};
+    const enrolls = enrollS.val() || {};
+    const master = masterS.val() || {};
+
+    Object.keys(enrolls).forEach(app => {
+        const d = Object.values(master).find(x => String(x.applicationNumber) === String(app));
+        if(d) allCands.push(d);
+    });
+
+    render(pg);
+    updateStats();
+    Swal.close();
+}
+
+function updateStats() {
+    const p = Object.keys(attendanceMap).length;
+    document.getElementById('pCount').innerText = p;
+    document.getElementById('aCount').innerText = allCands.length - p;
+}
+
+function render(pg) {
+    const start = (pg - 1) * 15;
+    const items = allCands.slice(start, start + 15);
+    const area = document.getElementById('candidateArea');
+    
+    area.innerHTML = items.map((c, i) => {
+        const isP = attendanceMap[c.applicationNumber];
+        return `
+            <div class="candidate-card animate__animated animate__fadeInUp" style="animation-delay: ${i*0.05}s">
+                <div class="cand-info">
+                    <b>${c.applicantName}</b>
+                    <span>ID: ${c.applicationNumber} | Mob: ${c.mobile || 'NA'}</span>
+                    ${isP ? `<span class="time-tag"><i class="fas fa-check-circle"></i> In: ${isP.time} by ${isP.by}</span>` : ''}
+                </div>
+                <button class="mark-btn ${isP ? 'active' : ''}" onclick="markPresent('${c.applicationNumber}', '${c.applicantName}')">
+                    ${isP ? 'PRESENT' : 'MARK'}
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    const total = Math.ceil(allCands.length / 15);
+    let pgH = '';
+    for(let i=1; i<=total; i++) pgH += `<button onclick="render(${i})" style="background:${i===pg?'#e11d48':'white'}; color:${i===pg?'white':'black'}">${i}</button>`;
+    document.getElementById('pgArea').innerHTML = pgH;
+}
+
+async function markPresent(appId, name) {
+    if(attendanceMap[appId]) return;
+    const bid = document.getElementById('batchSel').value;
+    const date = document.getElementById('attDate').value;
+    const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    const entry = { by: activeEmp.name, time: time, status: 'Present' };
+    await db.ref(`AttendanceData/${bid}/${date}/${appId}`).set(entry);
+    attendanceMap[appId] = entry;
+    updateStats();
+    render(1);
+}
+
+async function downloadMasterReport() {
+    const lid = document.getElementById('listSel').value;
+    const date = document.getElementById('attDate').value;
+    if(!lid || !date) return Swal.fire('Error', 'Select Master List & Date first', 'error');
+
+    Swal.fire({ title: 'Generating Master Excel...', text: 'Processing all batches...', didOpen: () => Swal.showLoading() });
+
+    // Get Full Data for IDs
+    const masterSnap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    const masterData = masterSnap.val() || {};
+
+    let reportData = [];
+
+    // Loop through all currently filtered batches for this trade
+    for (let batch of allBatches) {
+        const [enrollS, attS] = await Promise.all([
+            db.ref(`BatchEnrollments/${batch.id}`).once('value'),
+            db.ref(`AttendanceData/${batch.id}/${date}`).once('value')
+        ]);
+
+        const enrolls = enrollS.val() || {};
+        const atts = attS.val() || {};
+
+        Object.keys(enrolls).forEach(appId => {
+            const candidate = Object.values(masterData).find(x => String(x.applicationNumber) === String(appId));
+            if (candidate) {
+                const isP = atts[appId];
+                reportData.push({
+                    'Date': date,
+                    'Batch Name': batch.name,
+                    'Candidate Name': candidate.applicantName,
+                    'Application ID': appId,
+                    'Mobile': candidate.mobile || '--',
+                    'Aadhar': candidate.verifiedAadhar || candidate.aadhar || '--',
+                    'Status': isP ? 'PRESENT' : 'ABSENT',
+                    'Punch Time': isP ? isP.time : '--',
+                    'Marked By': isP ? isP.by : '--'
+                });
+            }
+        });
+    }
+
+    const ws = XLSX.utils.json_to_sheet(reportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "MasterAttendance");
+    XLSX.writeFile(wb, `Master_Attendance_${date}.xlsx`);
+    Swal.close();
+}
+
+async function secureExcelDownload() {
+    const bid = document.getElementById('batchSel').value;
+    const date = document.getElementById('attDate').value;
+    if(!bid) return;
+
+    const data = allCands.map(c => {
+        const att = attendanceMap[c.applicationNumber];
+        return {
+            'Batch': document.getElementById('batchSel').options[document.getElementById('batchSel').selectedIndex].text,
+            'Date': date,
+            'Name': c.applicantName,
+            'Status': att ? 'Present' : 'Absent',
+            'Time': att ? att.time : '--'
+        };
+    });
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "BatchReport");
+    XLSX.writeFile(wb, `Batch_${bid}.xlsx`);
+}
+</script>
+</body>
+</html>

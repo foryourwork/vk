@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Exam Calling Dashboard</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #be123c; --primary-grad: linear-gradient(135deg, #be123c 0%, #fb7185 100%); --call-grad: linear-gradient(135deg, #059669 0%, #10b981 100%); --bg: #f8fafc; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: #1e293b; padding-bottom: 20px; }
+        
+        .header { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 12px 15px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 1000; }
+        .back-btn { width: 38px; height: 38px; border-radius: 12px; background: #fff; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; color: var(--primary); cursor: pointer; }
+        .user-info { display: flex; align-items: center; gap: 10px; flex: 1; }
+        .user-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--primary-grad); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+
+        .main-container { padding: 15px; max-width: 500px; margin: 0 auto; }
+        .summary-box { background: var(--primary-grad); color: white; padding: 20px; border-radius: 24px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+
+        .tab-scroll { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; scrollbar-width: none; }
+        .tab { white-space: nowrap; padding: 10px 18px; border-radius: 12px; background: #fff; border: 1px solid #e2e8f0; font-size: 11px; font-weight: 700; color: #64748b; cursor: pointer; }
+        .tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .search-input { width: 100%; padding: 12px 15px; border: 2px solid #fff; border-radius: 15px; outline: none; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 15px; }
+
+        .card { background: white; border-radius: 24px; padding: 18px; margin-bottom: 15px; border: 1px solid #edf2f7; position: relative; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .card::before { content: ''; position: absolute; top: 0; left: 0; width: 5px; height: 100%; background: var(--primary); }
+        
+        /* Rank/Counter badge */
+        .update-counter { position: absolute; top: 15px; right: 15px; background: #fff1f2; padding: 5px 12px; border-radius: 10px; text-align: center; }
+        .up-num { display: block; font-size: 20px; font-weight: 900; color: var(--primary); line-height: 1; }
+        .up-txt { font-size: 7px; font-weight: 800; text-transform: uppercase; color: var(--primary); }
+
+        .c-title { font-size: 17px; font-weight: 800; color: #1e293b; margin-bottom: 4px; padding-right: 60px; }
+        .c-sub { font-size: 11px; color: #64748b; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
+        
+        .remark-box { background: #f1f5f9; padding: 10px; border-radius: 12px; margin-top: 10px; border-left: 3px solid #94a3b8; }
+        .remark-label { font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+        .remark-text { font-size: 12px; font-weight: 700; color: #334155; }
+
+        .scheme-tag { display: inline-block; padding: 4px 10px; background: #fef2f2; color: var(--primary); border-radius: 8px; font-size: 10px; font-weight: 800; margin-top: 8px; }
+
+        .btn-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 15px; }
+        .act-btn { border: none; padding: 10px 5px; border-radius: 12px; font-size: 10px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .btn-wa { background: #dcfce7; color: #15803d; }
+        .btn-sms { background: #e0f2fe; color: #0369a1; }
+        .btn-upd { background: #fff1f2; color: #be123c; border: 1px solid #fee2e2; }
+
+        .call-now { width: 100%; padding: 14px; border-radius: 15px; border: none; background: var(--call-grad); color: white; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); }
+        
+        .logs-container { margin-top: 15px; padding: 12px; background: #f8fafc; border-radius: 15px; border: 1px dashed #cbd5e1; max-height: 180px; overflow-y: auto; }
+        .log-entry { padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+
+        /* Pagination CSS */
+        .pagination-container { display: flex; justify-content: center; align-items: center; gap: 15px; padding: 20px 0; margin-top: 10px; }
+        .pg-btn { padding: 10px 18px; border-radius: 12px; border: none; background: white; color: var(--primary); font-weight: 800; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; }
+        .pg-btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+        .pg-info { font-size: 13px; font-weight: 800; color: #64748b; }
+
+        #loader { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 2000; display: grid; place-items: center; }
+    </style>
+</head>
+<body>
+
+<div id="loader"><i class="fas fa-circle-notch fa-spin fa-3x" style="color:var(--primary)"></i></div>
+
+<div class="header">
+    <div class="back-btn" onclick="history.back()"><i class="fas fa-chevron-left"></i></div>
+    <div class="user-info">
+        <div class="user-icon" id="uInitial">?</div>
+        <div>
+            <div id="uNameDisp" style="font-size:14px; font-weight:800;">Loading...</div>
+            <div style="font-size:9px; color:#059669; font-weight:700;"><i class="fas fa-circle" style="font-size:7px"></i> ONLINE</div>
+        </div>
+    </div>
+    <i class="fas fa-redo-alt" onclick="location.reload()" style="color:#94a3b8; cursor: pointer;"></i>
+</div>
+
+<div class="main-container">
+    <div class="summary-box">
+        <div>
+            <div style="font-size:11px; font-weight:700; opacity:0.8;">PENDING FOR EXAM CALLS</div>
+            <div id="pendingCount" style="font-size:30px; font-weight:800;">0</div>
+        </div>
+        <i class="fas fa-user-graduate fa-2x" style="opacity: 0.3;"></i>
+    </div>
+
+    <div class="tab-scroll">
+        <button class="tab active" onclick="setFilter('overall', this)">OVERALL</button>
+        <button class="tab" onclick="setFilter('today', this)">TODAY</button>
+        <button class="tab" onclick="setFilter('7days', this)">7 DAYS</button>
+    </div>
+
+    <input type="text" id="searchInput" class="search-input" placeholder="Search name or mobile..." oninput="resetPageAndFilter()">
+
+    <div id="taskList"></div>
+    
+    <div class="pagination-container" id="paginationBox">
+        <button class="pg-btn" id="prevBtn" onclick="changePage(-1)">Pichhe</button>
+        <span class="pg-info" id="pgInfo">Page 1 of 1</span>
+        <button class="pg-btn" id="nextBtn" onclick="changePage(1)">Aage</button>
+    </div>
+</div>
+
+<script>
+// FIREBASE CONFIG
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser'));
+const activeName = currentUser?.name || "Caller";
+const activePin = String(currentUser?.pin || "");
+
+// CONFIGURATION & PAGINATION
+let currentPage = 1;
+const recordsPerPage = 10; 
+let rawData = [], masterMap = {}, listMetadata = {}, msgTemplates = [], filterType = 'overall';
+
+window.onload = async () => {
+    if(!currentUser || !activePin) { window.location.href='login.html'; return; }
+    document.getElementById('uNameDisp').innerText = activeName;
+    document.getElementById('uInitial').innerText = activeName.charAt(0);
+    document.getElementById('loader').style.display = 'grid';
+    await Promise.all([loadMetadata(), loadMasterData()]);
+    loadTasks();
+    loadTemplates();
+};
+
+async function loadMetadata() {
+    const snap = await db.ref('OverallListsMetadata').once('value');
+    snap.forEach(c => { listMetadata[c.key] = c.val(); });
+}
+
+async function loadMasterData() {
+    const snap = await db.ref('FullDataEntries').once('value');
+    snap.forEach(list => {
+        list.forEach(item => {
+            const d = item.val();
+            if(d.applicationNumber) masterMap[String(d.applicationNumber)] = { ...d, listKey: list.key };
+        });
+    });
+}
+
+function getHindiScheme(listKey, rawScheme) {
+    const meta = listMetadata[listKey] || {};
+    const sc = (meta.listName || rawScheme || "").toUpperCase();
+    if(sc.includes('VSSY')) return "विश्वकर्मा श्रम सम्मान योजना";
+    if(sc.includes('ODOP')) return "एक जनपद एक उत्पाद";
+    return sc;
+}
+
+function loadTasks() {
+    db.ref('UrgentCalls').on('value', snap => {
+        rawData = [];
+        snap.forEach(child => {
+            const task = child.val();
+            const assignedTo = String(task.assignedTo || "").trim().toUpperCase();
+            const myId = String(activePin).trim().toUpperCase();
+            if((assignedTo === myId || assignedTo === 'UNIVERSAL') && !task.isClosed) {
+                const master = masterMap[String(task.applicationNumber)] || {};
+                let dObj = new Date(0);
+                if(task.assignedDate) {
+                    const parts = task.assignedDate.split(',')[0].split('/');
+                    if(parts.length === 3) dObj = new Date(`${parts[1]}/${parts[0]}/${parts[2]}`);
+                }
+                rawData.push({ 
+                    ...task, dbKey: child.key,
+                    father: (master.fatherName || master.father_name || '---').toUpperCase(),
+                    schemeHindi: getHindiScheme(master.listKey, master.scheme || task.scheme),
+                    trade: (master.tradeName || master.trade || '---').toUpperCase(),
+                    assignDateObj: dObj
+                });
+            }
+        });
+        applyFilters();
+        document.getElementById('loader').style.display = 'none';
+    });
+}
+
+function loadTemplates() {
+    db.ref('MessageTemplates').on('value', snap => {
+        msgTemplates = [];
+        snap.forEach(c => { msgTemplates.push({ key: c.key, ...c.val() }); });
+    });
+}
+
+function setFilter(type, el) {
+    filterType = type;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    currentPage = 1;
+    applyFilters();
+}
+
+function resetPageAndFilter() {
+    currentPage = 1;
+    applyFilters();
+}
+
+function applyFilters() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    const now = new Date();
+    now.setHours(0,0,0,0);
+
+    // 1. FILTERING
+    let filtered = rawData.filter(d => {
+        const matchSearch = d.candidateName.toLowerCase().includes(term) || String(d.mobile).includes(term);
+        const taskDate = new Date(d.assignDateObj);
+        taskDate.setHours(0,0,0,0);
+        const diff = (now - taskDate) / (1000 * 60 * 60 * 24);
+        let matchDate = true;
+        if(filterType === 'today') matchDate = taskDate.getTime() === now.getTime();
+        else if(filterType === '7days') matchDate = diff <= 7;
+        return matchSearch && matchDate;
+    });
+
+    // 2. SMART SORTING: 
+    // "Appear in Exam" wale candidates ko list mein pichhe bhejna
+    filtered.sort((a, b) => {
+        const statusA = (a.lastCallStatus || "").toLowerCase();
+        const statusB = (b.lastCallStatus || "").toLowerCase();
+        const target = "appear in exam";
+
+        // Agar A ka status target hai, toh wo pichhe jayega
+        if (statusA === target && statusB !== target) return 1;
+        if (statusA !== target && statusB === target) return -1;
+        
+        // Jiska callCount kam hai wo upar rahega
+        if ((a.callCount || 0) !== (b.callCount || 0)) {
+            return (a.callCount || 0) - (b.callCount || 0);
+        }
+        return b.assignDateObj - a.assignDateObj;
+    });
+
+    // 3. PAGINATION CALCULATION
+    const totalItems = filtered.length;
+    const totalPages = Math.ceil(totalItems / recordsPerPage);
+    const startIdx = (currentPage - 1) * recordsPerPage;
+    const paginatedData = filtered.slice(startIdx, startIdx + recordsPerPage);
+
+    updatePaginationUI(totalPages, totalItems);
+    render(paginatedData, totalItems);
+}
+
+function updatePaginationUI(total, count) {
+    const box = document.getElementById('paginationBox');
+    if (count <= recordsPerPage) {
+        box.style.display = 'none';
+        return;
+    }
+    box.style.display = 'flex';
+    document.getElementById('pgInfo').innerText = `Page ${currentPage} of ${total}`;
+    document.getElementById('prevBtn').disabled = (currentPage === 1);
+    document.getElementById('nextBtn').disabled = (currentPage === total || total === 0);
+}
+
+function changePage(step) {
+    currentPage += step;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    applyFilters();
+}
+
+function render(data, totalCount) {
+    const list = document.getElementById('taskList');
+    list.innerHTML = '';
+    document.getElementById('pendingCount').innerText = totalCount;
+    
+    if(data.length === 0) {
+        list.innerHTML = `<div style="text-align:center; padding:50px; color:#94a3b8; font-weight:700;">No candidates found.</div>`;
+        return;
+    }
+
+    data.forEach(t => {
+        const cleanMob = String(t.mobile).replace(/\D/g, '').slice(-10);
+        const logContainerId = `logs-${t.dbKey}`;
+        const isExamDone = (t.lastCallStatus || "").toLowerCase() === "appear in exam";
+
+        list.innerHTML += `
+        <div class="card" style="${isExamDone ? 'opacity:0.7; border-left:5px solid #94a3b8;' : ''}">
+            <div class="update-counter">
+                <span class="up-num">${t.callCount || 0}</span>
+                <span class="up-txt">Updates</span>
+            </div>
+            <div class="c-title">${t.candidateName} ${isExamDone ? '<i class="fas fa-check-circle" style="color:#10b981; font-size:14px;"></i>' : ''}</div>
+            <div class="c-sub">S/O: ${t.father}</div>
+            <div class="scheme-tag">${t.schemeHindi}</div>
+            <div class="remark-box">
+                <div class="remark-label">Last Response</div>
+                <div class="remark-text">${t.lastCallStatus || 'No response yet'}</div>
+                <div style="font-size:9px; color:#94a3b8; margin-top:4px;"><i class="far fa-clock"></i> ${t.lastCallTime || '---'}</div>
+            </div>
+            <div style="font-size:16px; margin-top:15px; font-weight:800; color:#1e293b;"><i class="fas fa-phone-alt" style="color:#10b981"></i> +91 ${cleanMob}</div>
+            <div class="btn-grid">
+                <button class="act-btn btn-wa" onclick="handleMsg('WA', '91${cleanMob}', '${t.dbKey}')"><i class="fab fa-whatsapp fa-lg"></i><span>WhatsApp</span></button>
+                <button class="act-btn btn-sms" onclick="handleMsg('SMS', '91${cleanMob}', '${t.dbKey}')"><i class="fas fa-comment-dots fa-lg"></i><span>SMS</span></button>
+                <button class="act-btn btn-upd" onclick="openUpdatePopup('${t.dbKey}', '${t.candidateName}')"><i class="fas fa-pen-nib fa-lg"></i><span>Update</span></button>
+            </div>
+            <button class="call-now" onclick="handleCall('91${cleanMob}', '${t.dbKey}', '${t.candidateName}')"><i class="fas fa-phone-alt"></i> CALL NOW</button>
+            <div class="logs-container" id="${logContainerId}">
+                <div style="font-size:10px; color:#94a3b8;">History loading...</div>
+            </div>
+        </div>`;
+        fetchLogs(t.dbKey, logContainerId);
+    });
+}
+
+function fetchLogs(key, containerId) {
+    db.ref(`CallHistory/${key}`).limitToLast(5).on('value', snap => {
+        const div = document.getElementById(containerId);
+        if(!div) return;
+        let html = '<div style="font-size:10px; font-weight:800; color:#64748b; border-bottom:1px solid #e2e8f0; padding-bottom:3px; margin-bottom:5px;">RECENT LOGS</div>';
+        let logs = [];
+        snap.forEach(l => { logs.unshift(l.val()); });
+        if(logs.length === 0) html += '<div style="font-size:10px; color:#cbd5e1;">No history found.</div>';
+        else {
+            logs.forEach(log => {
+                html += `<div style="padding:4px 0; border-bottom:1px solid #f1f5f9;"><div style="font-size:10px; font-weight:700;">${log.status}</div><div style="font-size:8px; color:#94a3b8;">By ${log.caller} • ${log.time}</div></div>`;
+            });
+        }
+        div.innerHTML = html;
+    });
+}
+
+async function handleMsg(type, mobile, key) {
+    if (msgTemplates.length === 0) return Swal.fire('Wait', 'Loading templates...', 'warning');
+    const { value: selKey } = await Swal.fire({
+        title: 'Select Message',
+        input: 'select',
+        inputOptions: msgTemplates.reduce((acc, c) => { acc[c.key] = c.title; return acc; }, {}),
+        showCancelButton: true
+    });
+    if (selKey) {
+        const temp = msgTemplates.find(x => x.key === selKey);
+        const d = rawData.find(x => x.dbKey === key);
+        let msg = temp.content.replace(/{name}/g, d.candidateName).replace(/{scheme}/g, d.schemeHindi);
+        if (type === 'WA') window.open(`https://wa.me/${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+        else window.location.href = `sms:+${mobile}?body=${encodeURIComponent(msg)}`;
+    }
+}
+
+function handleCall(mobile, key, name) {
+    window.location.href = `tel:+${mobile}`;
+    const onReturn = () => {
+        window.removeEventListener('focus', onReturn);
+        setTimeout(() => { openUpdatePopup(key, name); }, 1000);
+    };
+    window.addEventListener('focus', onReturn);
+}
+
+async function openUpdatePopup(key, name) {
+    // Exam related specific options
+    const opts = [
+        "Appear in Exam",
+		"Not Answering",
+        "Not coming for Exam",
+        "Call Busy",
+        "Switch Off",
+        "Wrong Number",
+        "Other"
+    ];
+    let optStr = opts.map(o => `<option value="${o}">${o}</option>`).join('');
+
+    const { value: result } = await Swal.fire({
+        title: `<b>Update: ${name}</b>`,
+        html: `
+            <select id="sw-status" class="swal2-select" style="width:100%; border-radius:12px;" onchange="toggleOther(this.value)">
+                <option value="">-- Result चुनें --</option>
+                ${optStr}
+            </select>
+            <input id="sw-other" class="swal2-input" style="display:none; width:100%; margin-top:10px;" placeholder="Write reason...">`,
+        showCancelButton: true, confirmButtonColor: '#be123c',
+        preConfirm: () => {
+            const s = document.getElementById('sw-status').value;
+            const o = document.getElementById('sw-other').value;
+            if(!s) return Swal.showValidationMessage('Selection is required');
+            return s === "Other" ? o : s;
+        }
+    });
+    if (result) saveStatus(key, result);
+}
+
+function toggleOther(v) { document.getElementById('sw-other').style.display = (v === 'Other') ? 'block' : 'none'; }
+
+async function saveStatus(key, txt) {
+    const ts = new Date().toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    await db.ref(`CallHistory/${key}`).push({ status: txt, caller: activeName, time: ts, type: 'Exam_Calling' });
+    await db.ref(`UrgentCalls/${key}`).update({ 
+        lastCallStatus: txt, 
+        lastCallTime: ts, 
+        lastAgent: activeName, 
+        callCount: firebase.database.ServerValue.increment(1) 
+    });
+    Swal.fire({ icon:'success', title:'Updated', timer:800, showConfirmButton:false, toast:true, position:'top' });
+}
+</script>
+</body>
+</html>

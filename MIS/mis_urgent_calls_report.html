@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MIS Control | Agent Analytics</title>
+    
+    <script>
+        // MIS LEAD Role Security
+        (function() {
+            const user = JSON.parse(sessionStorage.getItem('activeUser'));
+            if (!user) { window.location.href = "login.html"; return; }
+            const roles = user.roles || [user.role];
+            if (!roles.some(r => String(r).toLowerCase() === 'mis lead')) {
+                alert("Unauthorized! Sirf MIS LEAD access kar sakte hain.");
+                window.location.href = "login.html";
+            }
+        })();
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #be123c; --bg: #f8fafc; --text: #0f172a; --border: #e2e8f0; --success: #059669; }
+        * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); margin: 0; padding-bottom: 30px; }
+
+        .header { background: white; padding: 15px 20px; border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 1000; }
+        .back-btn { width: 35px; height: 35px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #fff1f2; color: var(--primary); cursor: pointer; }
+
+        .container { padding: 15px; max-width: 600px; margin: 0 auto; }
+
+        /* Advanced Filter Styles */
+        .filter-box { background: white; padding: 20px; border-radius: 20px; border: 1px solid var(--border); margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
+        .filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        label { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 5px; }
+        select, input { width: 100%; padding: 10px; border-radius: 10px; border: 1.5px solid #f1f5f9; font-weight: 600; font-size: 13px; outline: none; }
+
+        /* Caller Card */
+        .caller-card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 15px; border: 1px solid var(--border); }
+        .caller-name { font-size: 18px; font-weight: 800; color: var(--primary); margin-bottom: 15px; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+        
+        /* Action Buttons */
+        .action-group { display: flex; gap: 8px; }
+        .btn-sm { flex: 1; padding: 10px; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: 0.2s; }
+        .btn-see { background: #f1f5f9; color: #475569; }
+        .btn-unassign { background: #fff1f2; color: var(--primary); }
+        .btn-sm:active { transform: scale(0.95); }
+
+        /* Stats in Card */
+        .card-stats { display: flex; justify-content: space-between; margin-bottom: 15px; padding: 12px; background: #f8fafc; border-radius: 12px; }
+        .stat-val { font-size: 14px; font-weight: 800; }
+
+        #loader { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; display: none; place-items: center; }
+    </style>
+</head>
+<body>
+
+<div id="loader"><i class="fas fa-circle-notch fa-spin fa-3x" style="color:var(--primary)"></i></div>
+
+<div class="header">
+    <div class="back-btn" onclick="window.history.back()"><i class="fas fa-chevron-left"></i></div>
+    <div style="flex-grow: 1;">
+        <h2 style="margin:0; font-size:16px; font-weight:800;">AGENT CONTROL PANEL</h2>
+        <div id="uNameDisp" style="font-size:10px; color:var(--primary); font-weight:700;">MIS LEAD ACCESS</div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="filter-box">
+        <label><i class="fas fa-calendar-alt"></i> Timeframe Filter</label>
+        <div class="filter-row">
+            <div>
+                <label>Select Period</label>
+                <select id="timeRange" onchange="toggleDateInputs()">
+                    <option value="year" selected>By Year (Default)</option>
+                    <option value="month">By Month</option>
+                    <option value="date">Specific Date</option>
+                </select>
+            </div>
+            <div id="dateInputArea">
+                <label>Value</label>
+                <input type="number" id="yearVal" placeholder="2026" value="2026">
+            </div>
+        </div>
+        <button onclick="applyFilters()" style="width:100%; background:var(--primary); color:white; border:none; padding:12px; border-radius:12px; font-weight:800; cursor:pointer;">
+            APPLY FILTERS & SYNC
+        </button>
+    </div>
+
+    <div id="callerDisplay"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let masterUrgentData = {};
+
+function toggleDateInputs() {
+    const range = document.getElementById('timeRange').value;
+    const area = document.getElementById('dateInputArea');
+    if(range === 'year') area.innerHTML = '<label>Year</label><input type="number" id="yearVal" value="2026">';
+    else if(range === 'month') area.innerHTML = '<label>Month</label><input type="month" id="monthVal">';
+    else area.innerHTML = '<label>Date</label><input type="date" id="dateVal">';
+}
+
+async function applyFilters() {
+    toggleLoader(true);
+    const snap = await db.ref('UrgentCalls').once('value');
+    masterUrgentData = snap.val() || {};
+    
+    const rangeType = document.getElementById('timeRange').value;
+    let filtered = {};
+
+    Object.keys(masterUrgentData).forEach(key => {
+        const item = masterUrgentData[key];
+        const dateStr = item.assignedDate; // Assumed format from previous code: "toLocaleString"
+        
+        let match = false;
+        if(rangeType === 'year') {
+            const yr = document.getElementById('yearVal').value;
+            if(dateStr.includes(yr)) match = true;
+        } else if(rangeType === 'month') {
+            const mon = document.getElementById('monthVal').value; // YYYY-MM
+            if(dateStr.includes(mon.split('-')[1] + '/' + mon.split('-')[0])) match = true;
+        } else {
+            const dt = document.getElementById('dateVal').value; // YYYY-MM-DD
+            if(dateStr.includes(new Date(dt).toLocaleDateString())) match = true;
+        }
+
+        if(match) filtered[key] = item;
+    });
+
+    renderCallers(filtered);
+    toggleLoader(false);
+}
+
+function renderCallers(data) {
+    const agents = {};
+    Object.values(data).forEach(c => {
+        const id = c.assignedTo;
+        if(!agents[id]) agents[id] = { name: c.assignedToName, id: id, count: 0, pending: 0, list: [] };
+        agents[id].count++;
+        if(!c.lastCallStatus) agents[id].pending++;
+        agents[id].list.push(c);
+    });
+
+    let h = '';
+    Object.values(agents).forEach(a => {
+        h += `
+        <div class="caller-card">
+            <div class="caller-name"><i class="fas fa-user-tie"></i> ${a.name}</div>
+            
+            <div class="card-stats">
+                <div><label>Total Calls</label><div class="stat-val">${a.count}</div></div>
+                <div><label>Pending</label><div class="stat-val" style="color:var(--primary)">${a.pending}</div></div>
+            </div>
+
+            <div class="action-group">
+                <button class="btn-sm btn-see" onclick="seeCandidates('${a.id}', '${a.name}')">
+                    <i class="fas fa-eye"></i> SEE CANDIDATE
+                </button>
+                <button class="btn-sm btn-unassign" onclick="unassignAll('${a.id}', '${a.name}')">
+                    <i class="fas fa-user-minus"></i> UNASSIGN CALLS
+                </button>
+            </div>
+        </div>`;
+    });
+
+    document.getElementById('callerDisplay').innerHTML = h || '<p style="text-align:center; opacity:0.5; margin-top:30px;">No data found for selected period.</p>';
+}
+
+function seeCandidates(id, name) {
+    const agentCalls = Object.values(masterUrgentData).filter(x => x.assignedTo == id);
+    let listH = '<div style="text-align:left; max-height:300px; overflow-y:auto; font-size:13px;">';
+    agentCalls.forEach(c => {
+        listH += `<div style="padding:10px; border-bottom:1px solid #eee;">
+                    <b>${c.candidateName}</b><br>
+                    <span style="font-size:11px; color:#64748b;">${c.mobile} | Status: ${c.lastCallStatus || 'Pending'}</span>
+                  </div>`;
+    });
+    Swal.fire({ title: name, html: listH + '</div>', confirmButtonColor: '#be123c' });
+}
+
+async function unassignAll(id, name) {
+    const res = await Swal.fire({
+        title: 'Are you sure?',
+        text: `Unassign all calls from ${name}? Leads will return to master list.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#be123c',
+        confirmButtonText: 'Yes, Unassign'
+    });
+
+    if(res.isConfirmed) {
+        toggleLoader(true);
+        const updates = {};
+        Object.keys(masterUrgentData).forEach(key => {
+            if(masterUrgentData[key].assignedTo == id) {
+                updates[`UrgentCalls/${key}`] = null;
+            }
+        });
+        await db.ref().update(updates);
+        await applyFilters();
+        toggleLoader(false);
+        Swal.fire('Success', 'Calls unassigned successfully', 'success');
+    }
+}
+
+function toggleLoader(s) { document.getElementById('loader').style.display = s ? 'grid' : 'none'; }
+
+window.onload = () => {
+    const user = JSON.parse(sessionStorage.getItem('activeUser'));
+    if(user) document.getElementById('uNameDisp').innerText = `MIS LEAD: ${user.name}`;
+    applyFilters();
+};
+</script>
+</body>
+</html>

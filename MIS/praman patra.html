@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Praman Patra Generator</title>
+    <meta name="theme-color" content="#007bff">
+    
+    <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22Praman%20Patra%20Generator%22,%22short_name%22:%22PramanPatra%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%23e9ecef%22,%22theme_color%22:%22%23007bff%22,%22icons%22:[{%22src%22:%22data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23007bff'/><text x='50' y='65' font-family='Arial' font-size='50' fill='white' text-anchor='middle'>प</text></svg>%22,%22sizes%22:%22512x512%22,%22type%22:%22image/svg+xml%22}]}">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Arial', sans-serif; 
+            background: #e9ecef; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 10px; 
+            margin: 0;
+            min-height: 100vh;
+        }
+        
+        #popupOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 15px; }
+        .form-box { background: white; padding: 25px; border-radius: 15px; width: 100%; max-width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .form-box h2 { margin-top: 0; color: #333; text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px; font-size: 22px; }
+        .form-box label { font-weight: bold; display: block; margin-top: 10px; color: #555; font-size: 14px; }
+        .form-box input, .form-box select { width: 100%; padding: 12px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+        .form-box button { width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 18px; }
+
+        .cert-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            padding: 10px 0;
+            overflow: visible;
+        }
+
+        /* Screen Preview Certificate */
+        #certificate {
+            width: 1000px; 
+            height: 680px; 
+            background: #ffffff !important; 
+            padding: 80px;
+            position: relative; 
+            border: 2px solid #000;
+            display: none;
+            box-shadow: 0 0 25px rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+        
+        .header-title { text-align: center; text-decoration: underline; font-size: 42px; font-weight: bold; margin-bottom: 75px; color: #000; }
+        .content { font-size: 28px; line-height: 2.5; text-align: justify; color: #000; }
+        .dots { border-bottom: 1px solid #000; font-weight: bold; padding: 0 10px; }
+        
+        .footer-sign-img { 
+            position: absolute; 
+            bottom: 60px; 
+            right: 80px; 
+            width: 260px; 
+            height: auto; 
+            z-index: 2; 
+        }
+        
+        .action-btns { margin-top: 25px; display: none; gap: 15px; width: 100%; max-width: 500px; justify-content: center; }
+        .btn { flex: 1; padding: 15px 20px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; font-size: 16px; text-align: center; }
+        .btn-edit { background: #ffc107; color: #000; }
+        .btn-download { background: #007bff; }
+
+        @media screen and (max-width: 1040px) {
+            #certificate {
+                transform-origin: top center;
+            }
+            .cert-container {
+                height: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="popupOverlay">
+    <div class="form-box">
+        <h2>प्रमाण पत्र विवरण भरें</h2>
+        
+        <label>उम्मीदवार का नाम / पिता का नाम:</label>
+        <input type="text" id="inName" placeholder="नाम लिखें">
+        <input type="text" id="inFather" placeholder="पिता या पति का नाम">
+        
+        <label>कारीगरी का प्रकार चुनें:</label>
+        <select id="inWork" onchange="checkCustom(this.value)">
+            <option value="">-- कार्य चुनें --</option>
+            <option value="हलवाई">हलवाई</option>
+            <option value="दर्जी">दर्जी</option>
+            <option value="सुनार">सुनार</option>
+            <option value="बढ़ई">बढ़ई</option>
+            <option value="राजमिस्त्री">राजमिस्त्री</option>
+            <option value="नाई">नाई</option>
+            <option value="मोची">मोची</option>
+            <option value="लोहार">लोहार</option>
+            <option value="कुम्हार">कुम्हार</option>
+            <option value="धोबी">धोबी</option>
+            <option value="टोकरी बुनकर">टोकरी बुनकर</option>
+            <option value="custom">अन्य (खुद लिखें)</option>
+        </select>
+        <input type="text" id="customWork" placeholder="यहाँ कारीगरी का नाम लिखें" style="display:none;">
+        
+        <button onclick="generateCertificate()">प्रमाण पत्र तैयार करें</button>
+    </div>
+</div>
+
+<div class="cert-container" id="certContainer">
+    <div id="certificate">
+        <div class="header-title">प्रमाण पत्र</div>
+        <div class="content">
+            प्रमाणित किया जाता है कि श्री <span id="dispName" class="dots"></span> पुत्र/पुत्री/पत्नी श्री <span id="dispFather" class="dots"></span> जिला झाँसी के निवासी है। जो परम्परागत <span id="dispWork" class="dots"></span> कारीगरी से जुड़े हैं। मैं इनके उज्ज्वल भविष्य की कामना करता हूँ।
+        </div>
+        <img src="sign.png" alt="Signature" class="footer-sign-img">
+    </div>
+</div>
+
+<div class="action-btns" id="actionBtns">
+    <button class="btn btn-edit" onclick="location.reload()">नया बनाएँ</button>
+    <button class="btn btn-download" onclick="downloadImage()">प्रमाण पत्र डाउनलोड करें</button>
+</div>
+
+<script>
+    let rawEnglishName = "Certificate"; 
+
+    function isHindi(text) { return /[\u0900-\u097F]/.test(text); }
+
+    async function smartTranslate(text) {
+        if(!text) return "";
+        if(!isHindi(text)) {
+            rawEnglishName = text.trim().replace(/[^a-zA-Z0-9]/g, "_");
+        }
+        
+        if(isHindi(text)) return text;
+        try {
+            const res = await fetch(`https://inputtools.google.com/request?text=${text}&ime=transliteration_en_hi&num=1`);
+            const data = await res.json();
+            return data[1][0][1][0];
+        } catch (e) { return text; }
+    }
+
+    function checkCustom(val) {
+        document.getElementById('customWork').style.display = (val === 'custom') ? 'block' : 'none';
+    }
+
+    function adjustResponsiveScale() {
+        const cert = document.getElementById('certificate');
+        const container = document.getElementById('certContainer');
+        if (cert.style.display === 'block') {
+            const windowWidth = window.innerWidth - 20; 
+            if (windowWidth < 1000) {
+                const scaleRatio = windowWidth / 1000;
+                cert.style.transform = `scale(${scaleRatio})`;
+                container.style.height = (680 * scaleRatio) + 20 + "px";
+            } else {
+                cert.style.transform = "none";
+                container.style.height = "auto";
+            }
+        }
+    }
+
+    window.addEventListener('resize', adjustResponsiveScale);
+
+    async function generateCertificate() {
+        const cName = await smartTranslate(document.getElementById('inName').value);
+        const fName = await smartTranslate(document.getElementById('inFather').value);
+        
+        let work = document.getElementById('inWork').value;
+        if(work === 'custom') work = document.getElementById('customWork').value;
+
+        if(!cName) { alert("कृपया उम्मीदवार का नाम भरें!"); return; }
+
+        document.getElementById('dispName').innerText = cName;
+        document.getElementById('dispFather').innerText = fName;
+        document.getElementById('dispWork').innerText = work;
+
+        document.getElementById('popupOverlay').style.display = 'none';
+        document.getElementById('certificate').style.display = 'block';
+        document.getElementById('actionBtns').style.display = 'flex';
+        
+        adjustResponsiveScale();
+    }
+
+    function downloadImage() {
+        // 1. मेमोरी में एक पूरी तरह से फ्रेश और हिडन DOM नोड बनाएं (वर्चुअल रेंडर)
+        const renderWrapper = document.createElement('div');
+        renderWrapper.style.position = 'absolute';
+        renderWrapper.style.top = '-9999px';
+        renderWrapper.style.left = '-9999px';
+        renderWrapper.style.width = '1000px';
+        renderWrapper.style.height = '680px';
+        renderWrapper.style.backgroundColor = '#ffffff';
+        document.body.appendChild(renderWrapper);
+
+        // 2. लाइव टेक्स्ट डेटा को सीधे स्ट्रिंग बनाकर पास करें (ताकि खाली पन्ने की दिक्कत न हो)
+        const nameText = document.getElementById('dispName').innerText;
+        const fatherText = document.getElementById('dispFather').innerText;
+        const workText = document.getElementById('dispWork').innerText;
+
+        // 3. बिना किसी रिस्पॉन्सिव स्टाइल या ट्रांसफॉर्म के प्योर प्योर व्हाइट HTML ब्लॉक जनरेट करें
+        renderWrapper.innerHTML = `
+            <div style="width:1000px; height:680px; background:#ffffff; padding:80px; box-sizing:border-box; position:relative; border:2px solid #000; font-family:'Arial', sans-serif;">
+                <div style="text-align:center; text-decoration:underline; font-size:42px; font-weight:bold; margin-bottom:75px; color:#000;">प्रमाण पत्र</div>
+                <div style="font-size:28px; line-height:2.5; text-align:justify; color:#000;">
+                    प्रमाणित किया जाता है कि श्री <span style="border-bottom:1px solid #000; font-weight:bold; padding:0 10px;">${nameText}</span> पुत्र/पुत्री/पत्नी श्री <span style="border-bottom:1px solid #000; font-weight:bold; padding:0 10px;">${fatherText}</span> जिला झाँसी के निवासी है। जो परम्परागत <span style="border-bottom:1px solid #000; font-weight:bold; padding:0 10px;">${workText}</span> कारीगरी से जुड़े हैं। मैं इनके उज्ज्वल भविष्य की कामना करता हूँ।
+                </div>
+                <img src="sign.png" style="position:absolute; bottom:60px; right:80px; width:260px; height:auto; z-index:2;">
+            </div>
+        `;
+
+        // 4. ब्राउज़र इमेज और लेआउट को पूरी तरह रेंडर कर ले, उसके लिए 100ms रुकें
+        setTimeout(() => {
+            html2canvas(renderWrapper.firstElementChild, { 
+                scale: 1, 
+                useCORS: true,
+                backgroundColor: "#ffffff",
+                logging: false,
+                width: 1000,
+                height: 680
+            }).then(canvas => {
+                // 5. जेपेग (JPEG) फाइल डाउनलोड ट्रिगर करें (<100KB साइज के साथ)
+                const link = document.createElement('a');
+                link.download = `Certificate_${rawEnglishName}.jpg`;
+                link.href = canvas.toDataURL('image/jpeg', 0.65);
+                link.click();
+                
+                // मेमोरी खाली करें
+                document.body.removeChild(renderWrapper);
+            });
+        }, 100);
+    }
+
+    // PWA Offline Support
+    if ('serviceWorker' in navigator) {
+        const swCode = `
+            const CACHE_NAME = 'praman-patra-v6';
+            const ASSETS = [
+                '/',
+                'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+            ];
+            self.addEventListener('install', (e) => {
+                e.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+            });
+            self.addEventListener('fetch', (e) => {
+                e.respondWith(caches.match(e.request).then((res) => res || fetch(e.request)));
+            });
+        `;
+        const blob = new Blob([swCode], { type: 'application/javascript' });
+        const swUrl = URL.createObjectURL(blob);
+        navigator.serviceWorker.register(swUrl).catch(err => console.log(err));
+    }
+</script>
+
+</body>
+</html>

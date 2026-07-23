@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Employee Panel</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --red: #be123c; --red-bg: #fff1f2; --success: #059669; --glass: rgba(255, 255, 255, 0.95); }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; margin: 0; color: #1e293b; }
+        .header { background: white; padding: 12px 20px; border-bottom: 3px solid var(--red); position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .back-btn { font-size: 20px; color: var(--red); cursor: pointer; margin-right: 15px; transition: 0.3s; }
+        .container { width: 100%; max-width: 800px; margin: 0 auto; padding: 15px; }
+        .banner { background: linear-gradient(135deg, var(--red), #fb7185); color: white; padding: 20px; border-radius: 20px; text-align: center; margin-bottom: 20px; }
+        .banner b { font-size: 32px; display: block; }
+        .filter-box { background: white; padding: 18px; border-radius: 24px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
+        .grid-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        input, select { width: 100%; padding: 12px; border-radius: 12px; border: 1.5px solid #e2e8f0; font-weight: 600; font-size: 14px; outline: none; }
+        .scroll-pills { display: flex; overflow-x: auto; gap: 8px; padding: 10px 0; scrollbar-width: none; }
+        .pill { white-space: nowrap; padding: 8px 16px; background: #f1f5f9; border: 1.5px solid #e2e8f0; border-radius: 100px; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .pill.active { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+        .card { background: white; border-radius: 20px; padding: 18px; margin-bottom: 15px; border-left: 6px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .card.active-card { border-left-color: var(--red); }
+        .name { color: #1e293b; font-size: 18px; font-weight: 800; margin: 5px 0; }
+        .caller-info { margin-top: 10px; font-size: 11px; padding: 10px; background: #f8fafc; border-radius: 10px; border: 1px dashed #cbd5e1; }
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .btn { padding: 12px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
+        .btn-call { background: var(--success); color: white; }
+        .btn-log { background: #f1f5f9; color: #475569; }
+        .pagination { display: flex; justify-content: center; gap: 8px; margin: 20px 0; }
+        .p-btn { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; border-radius: 10px; cursor: pointer; font-weight: 700; }
+        .p-btn.active { background: var(--red); color: white; border-color: var(--red); }
+        .btn-excel { background: #1e293b; color: white; width: 100%; padding: 15px; border-radius: 15px; border: none; font-weight: 800; cursor: pointer; margin-bottom: 20px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex; align-items:center;">
+        <i class="fas fa-chevron-left back-btn" onclick="window.history.back()"></i>
+        <div>
+            <h2 style="font-size:10px; color:var(--red); font-weight:900; margin:0; letter-spacing:1px;">SYNC PRO v3.0</h2>
+            <div id="uName" style="font-size:15px; font-weight:700;">Loading...</div>
+        </div>
+    </div>
+    <div id="clock" style="font-size:11px; font-weight:800; color:#64748b;"></div>
+</div>
+
+<div class="container">
+    <div class="banner">
+        <span>MY UPDATES TODAY</span>
+        <b id="callCount">0</b>
+    </div>
+
+    <div class="filter-box">
+        <input type="text" id="searchInp" oninput="filter()" placeholder="Search Name, Mobile or ID..." style="margin-bottom:12px;">
+        <div class="grid-filters">
+            <select id="listSel" onchange="syncMaster()"></select>
+            <select id="tradeSel" onchange="filter()"><option value="">-- Training --</option></select>
+        </div>
+        <div class="scroll-pills" id="datePills">
+            <div class="pill active" onclick="setDateRange('ALL', this)">All Time</div>
+            <div class="pill" onclick="setDateRange('TODAY', this)">Today</div>
+            <div class="pill" onclick="setDateRange('7DAYS', this)">Last 7 Days</div>
+        </div>
+        <div class="scroll-pills" id="statusPills"></div>
+    </div>
+
+    <button class="btn-excel" onclick="secureExport()"><i class="fas fa-file-download"></i> DOWNLOAD EXCEL (SYNC UPDATES)</button>
+
+    <div id="results"></div>
+    <div class="pagination" id="pagin"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const OPTS = { 1:"कॉल काट दिया", 2:"जवाब नहीं दिया", 3:"आने से मना किया", 4:"नंबर गलत", 5:"2 दिन में आएगा", 6:"इनकमिंग बंद", 7:"कॉल व्यस्त", 8:"परिवार को सूचना", 12:"ट्रेनिंग में आजायेगी", 11:"अन्य" };
+
+let master = [], filtered = [], curPage = 1, size = 15;
+let uName = "User", uPin = "";
+let rangeMode = 'ALL', statusMode = 'ALL';
+
+window.onload = () => {
+    const sData = sessionStorage.getItem('activeUser');
+    if(sData) { 
+        const user = JSON.parse(sData);
+        uName = user.name; 
+        uPin = user.pin || "";
+        document.getElementById('uName').innerText = uName; 
+    }
+    setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-IN'); }, 1000);
+    loadLists();
+    loadStats();
+};
+
+async function loadLists() {
+    db.ref('OverallListsMetadata').once('value', s => {
+        let h = '<option value="">-- Select Master List --</option>';
+        s.forEach(c => { h += `<option value="${c.key}">${c.val().listName}</option>`; });
+        document.getElementById('listSel').innerHTML = h;
+    });
+}
+
+async function syncMaster() {
+    const lid = document.getElementById('listSel').value;
+    if(!lid) return;
+    Swal.fire({ title: 'Syncing Data...', didOpen: () => Swal.showLoading() });
+    
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        let h = '<option value="">-- Select Training --</option>';
+        s.forEach(c => { h += `<option value="${c.val().tradeName}">${c.val().trainingName}</option>`; });
+        document.getElementById('tradeSel').innerHTML = h;
+    });
+
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    master = [];
+    snap.forEach(c => { master.push({...c.val(), dbKey: c.key}); });
+    Swal.close();
+    filter();
+}
+
+function setDateRange(mode, el) {
+    rangeMode = mode;
+    document.getElementById('datePills').querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    filter();
+}
+
+function setStatusMode(mode, el) {
+    statusMode = mode;
+    document.getElementById('statusPills').querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    filter();
+}
+
+function filter() {
+    const trade = document.getElementById('tradeSel').value;
+    const q = document.getElementById('searchInp').value.toUpperCase();
+    const todayStr = new Date().toLocaleDateString('en-GB');
+
+    if(!trade) {
+        document.getElementById('results').innerHTML = `<p style="text-align:center; padding:50px; color:#64748b;">Master List & Training select karein.</p>`;
+        return;
+    }
+
+    filtered = master.filter(d => {
+        const mTrade = d.tradeName === trade;
+        const mQ = (d.applicantName||"").toUpperCase().includes(q) || (d.mobile||"").includes(q) || (d.applicationNumber||"").includes(q);
+        
+        let mDate = true;
+        if(rangeMode === 'TODAY') mDate = d.lastCallTime && d.lastCallTime.includes(todayStr);
+        else if(rangeMode === '7DAYS' && d.lastCallTime) {
+            const entryDate = new Date(d.lastCallTime.split(',')[0]);
+            mDate = (new Date() - entryDate) / (1000*60*60*24) <= 7;
+        }
+
+        let mStat = true;
+        if(statusMode === 'PENDING') mStat = !d.lastCallStatus;
+        else if(statusMode === 'ANYA') {
+            const std = Object.values(OPTS).filter(v => v !== "अन्य");
+            mStat = d.lastCallStatus && !std.includes(d.lastCallStatus);
+        } else if(statusMode !== 'ALL') {
+            mStat = d.lastCallStatus === statusMode;
+        }
+
+        return mTrade && mQ && mDate && mStat;
+    });
+
+    updateStatusPills(trade);
+    curPage = 1;
+    render();
+}
+
+function updateStatusPills(trade) {
+    let counts = { ALL: 0, PENDING: 0, ANYA: 0 };
+    const std = Object.values(OPTS).filter(v => v !== "अन्य");
+    std.forEach(v => counts[v] = 0);
+    master.forEach(d => {
+        if(d.tradeName === trade) {
+            counts.ALL++;
+            if(!d.lastCallStatus) counts.PENDING++;
+            else if(std.includes(d.lastCallStatus)) counts[d.lastCallStatus]++;
+            else counts.ANYA++;
+        }
+    });
+    let h = `<div class="pill ${statusMode==='ALL'?'active':''}" onclick="setStatusMode('ALL', this)">All (${counts.ALL})</div>`;
+    h += `<div class="pill ${statusMode==='PENDING'?'active':''}" onclick="setStatusMode('PENDING', this)">Pending (${counts.PENDING})</div>`;
+    std.forEach(v => {
+        if(counts[v] > 0) h += `<div class="pill ${statusMode===v?'active':''}" onclick="setStatusMode('${v}', this)">${v} (${counts[v]})</div>`;
+    });
+    h += `<div class="pill ${statusMode==='ANYA'?'active':''}" onclick="setStatusMode('ANYA', this)">अन्य (${counts.ANYA})</div>`;
+    document.getElementById('statusPills').innerHTML = h;
+}
+
+function render() {
+    const start = (curPage - 1) * size;
+    const items = filtered.slice(start, start + size);
+    let h = '';
+    items.forEach(d => {
+        h += `
+        <div class="card ${d.lastCallStatus ? 'active-card' : ''}">
+            <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:900; color:var(--red);">
+                <span>${d.lastCallStatus || 'NEW CANDIDATE'}</span>
+                <span>ID: ${d.applicationNumber}</span>
+            </div>
+            <h3 class="name">${d.applicantName}</h3>
+            <div style="font-size:12px; color:#475569;">
+                <i class="fas fa-phone-alt"></i> ${d.mobile} | <i class="fas fa-user"></i> S/O: ${d.fatherName || '--'}
+            </div>
+            <div class="caller-info">
+                <div style="display:flex; justify-content:space-between;">
+                    <span><b>Caller:</b> ${d.lastCaller || 'No Update'}</span>
+                    <span><b>Time:</b> ${d.lastCallTime || '--'}</span>
+                </div>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-call" onclick="window.location.href='tel:${d.mobile}'"><i class="fas fa-phone"></i> CALL</button>
+                <button class="btn btn-log" onclick="openLogs('${d.dbKey}', '${d.applicantName}')"><i class="fas fa-history"></i> LOGS & UPDATE</button>
+            </div>
+        </div>`;
+    });
+    document.getElementById('results').innerHTML = h || '<p style="text-align:center; padding:40px;">No results found.</p>';
+    renderPagination();
+}
+
+function renderPagination() {
+    const total = Math.ceil(filtered.length / size);
+    let h = '';
+    if(total <= 1) { document.getElementById('pagin').innerHTML = ''; return; }
+    for(let i=1; i<=total; i++) {
+        if(i==1 || i==total || (i >= curPage-1 && i <= curPage+1))
+        h += `<div class="p-btn ${i==curPage?'active':''}" onclick="changePage(${i})">${i}</div>`;
+    }
+    document.getElementById('pagin').innerHTML = h;
+}
+function changePage(p) { curPage = p; render(); window.scrollTo(0,0); }
+
+async function openLogs(key, name) {
+    const lid = document.getElementById('listSel').value;
+    const logSnap = await db.ref(`CallHistory/${key}`).once('value');
+    let logsH = '';
+    logSnap.forEach(s => {
+        logsH = `<div style="padding:10px; background:#f8fafc; border-radius:8px; border:1px solid #eee; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="text-align:left; font-size:11px;">
+                <b>${s.val().status}</b><br><small>${s.val().caller} | ${s.val().time}</small>
+            </div>
+            <i class="fas fa-trash-alt" style="color:#ef4444; cursor:pointer;" onclick="deleteLog('${key}', '${s.key}', '${lid}')"></i>
+        </div>` + logsH;
+    });
+
+    let optH = '';
+    for(let k in OPTS) optH += `<option value="${OPTS[k]}">${OPTS[k]}</option>`;
+
+    Swal.fire({
+        title: name,
+        html: `
+            <select id="swStat" class="swal2-select" onchange="document.getElementById('swOther').style.display=(this.value==='अन्य'?'block':'none')">
+                <option value="">-- Add Update --</option>${optH}
+            </select>
+            <input id="swOther" placeholder="Reason likhein..." class="swal2-input" style="display:none; font-size:14px;">
+            <div style="margin-top:15px; max-height:200px; overflow-y:auto;">${logsH || 'No history'}</div>
+        `,
+        confirmButtonText: 'SAVE LOG',
+        showCancelButton: true,
+        confirmButtonColor: '#be123c'
+    }).then(async r => {
+        if(r.isConfirmed) {
+            let status = document.getElementById('swStat').value;
+            const other = document.getElementById('swOther').value;
+            if(status === "अन्य") status = other || "अन्य";
+            if(!status) return;
+
+            const time = new Date().toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+            await db.ref(`FullDataEntries/${lid}/${key}`).update({ lastCallStatus: status, lastCaller: uName, lastCallTime: time });
+            await db.ref(`CallHistory/${key}`).push({ status, caller: uName, time });
+            
+            const tKey = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+            db.ref(`MyStats/${uName}/${tKey}`).transaction(c => (c||0)+1);
+            syncMaster();
+        }
+    });
+}
+
+async function deleteLog(parent, logKey, lid) {
+    const { value: pin } = await Swal.fire({ title: 'Confirm PIN', input: 'password', showCancelButton: true });
+    if(pin === uPin) { 
+        await db.ref(`CallHistory/${parent}/${logKey}`).remove();
+        const last = await db.ref(`CallHistory/${parent}`).limitToLast(1).once('value');
+        let up = { lastCallStatus: null, lastCaller: null, lastCallTime: null };
+        last.forEach(s => { up = { lastCallStatus: s.val().status, lastCaller: s.val().caller, lastCallTime: s.val().time }; });
+        await db.ref(`FullDataEntries/${lid}/${parent}`).update(up);
+        Swal.fire('Deleted','','success'); syncMaster();
+    } else {
+        Swal.fire('Error','PIN Galat hai!','error');
+    }
+}
+
+async function secureExport() {
+    const { value: pin } = await Swal.fire({ title: 'Enter PIN for Export', input: 'password', showCancelButton: true });
+    if(pin !== uPin) return Swal.fire('Error','Access Denied','error');
+
+    Swal.fire({ title: 'Generating Report...', didOpen: () => Swal.showLoading() });
+
+    const exportData = [];
+
+    // Filtered data se excel rows banana
+    for (const d of filtered) {
+        let row = {
+            "Candidate ID": d.applicationNumber || '--',
+            "Full Name": d.applicantName || '--',
+            "Mobile": d.mobile || '--',
+            "Father Name": d.fatherName || '--',
+            "Last Update (Assigned)": d.lastCallStatus || 'Pending', // Assigned page status
+            "Last Update Date": d.lastCallTime ? d.lastCallTime.split(',')[0] : '--', // Assigned page date
+            "Last Update Time": d.lastCallTime ? d.lastCallTime.split(',')[1] : '--', // Assigned page time
+            "Updated By (Employee)": d.lastCaller || '--', // Assigned page caller
+        };
+
+        // History columns fetch karna (All Previous Updates)
+        const histSnap = await db.ref(`CallHistory/${d.dbKey}`).once('value');
+        let index = 1;
+        histSnap.forEach(s => {
+            const h = s.val();
+            row[`Call_History_${index}`] = `${h.status} | ${h.time} | by ${h.caller}`;
+            index++;
+        });
+
+        exportData.push(row);
+    }
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Assigned_Updates_Report");
+    XLSX.writeFile(wb, `Sync_Report_${uName}_${new Date().toLocaleDateString()}.xlsx`);
+    Swal.close();
+}
+
+function loadStats() {
+    const tKey = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+    db.ref(`MyStats/${uName}/${tKey}`).on('value', s => { 
+        document.getElementById('callCount').innerText = s.val() || 0; 
+    });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VKETC | Elite Panel</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,700;0,800;1,600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #fdfdfe; --card: #ffffff; --text-p: #0f172a; --text-s: #475569;
+            --primary: #4338ca; --accent: #6366f1; --border: #e2e8f0; --nav: #ffffff; --urgent: #e11d48;
+            --gold: #d97706; --glass-border: rgba(0,0,0,0.05);
+        }
+        [data-theme="dark"] {
+            --bg: #020617; --card: #0f172a; --text-p: #f8fafc; --text-s: #94a3b8;
+            --primary: #818cf8; --accent: #a5b4fc; --border: #1e293b; --nav: #0f172a;
+            --gold: #fbbf24; --glass-border: rgba(255,255,255,0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background-color: var(--bg); color: var(--text-p); min-height: 100vh; padding-bottom: 110px; overflow-x: hidden; }
+
+        /* Animations */
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 5px var(--primary); } 50% { box-shadow: 0 0 20px var(--primary); } }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* Stylish Header */
+        .header { 
+            padding: 18px 20px; background: var(--nav); border-bottom: 2px solid var(--border);
+            position: sticky; top: 0; z-index: 1000; backdrop-filter: blur(15px);
+        }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .brand-logo { font-size: 0.9rem; font-weight: 800; letter-spacing: 2px; color: var(--primary); text-transform: uppercase; font-style: italic; }
+        
+        .user-profile-strip { display: flex; align-items: center; gap: 12px; margin-top: 15px; animation: slideIn 0.5s ease; }
+        .dynamic-logo { 
+            width: 45px; height: 45px; border-radius: 14px; 
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white; display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; font-weight: 800; border: 2px solid var(--glass-border);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .user-details h2 { font-size: 1.1rem; font-weight: 800; line-height: 1; }
+        .user-details span { font-size: 0.65rem; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; }
+
+        .container { padding: 15px; max-width: 500px; margin: 0 auto; }
+
+        /* Ranking Card */
+        .rank-card {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            padding: 20px; border-radius: 24px; color: white; margin-bottom: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            border: 1px solid var(--gold); position: relative; overflow: hidden;
+        }
+        .rank-card::after { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: linear-gradient(45deg, transparent, rgba(251,191,36,0.1), transparent); transform: rotate(45deg); pointer-events: none; }
+        .rank-label { font-size: 0.7rem; font-weight: 800; opacity: 0.8; }
+        .rank-value { font-size: 2.2rem; font-weight: 900; color: var(--gold); font-style: italic; }
+
+        /* Professional Service Cards */
+        .service-card {
+            background: var(--card); padding: 20px; border-radius: 24px;
+            display: flex; align-items: center; gap: 18px; text-decoration: none;
+            border: 1px solid var(--border); margin-bottom: 15px;
+            position: relative; box-shadow: 0 4px 15px var(--glass-border);
+        }
+        .service-card:hover { transform: scale(1.02); border-color: var(--primary); }
+        
+        .s-icon-box { 
+            width: 52px; height: 52px; border-radius: 16px; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; background: var(--bg); border: 1px solid var(--border);
+        }
+        .s-info h4 { font-size: 1rem; font-weight: 800; color: var(--text-p); letter-spacing: -0.3px; }
+        .s-info p { font-size: 0.75rem; color: var(--text-s); font-weight: 500; margin-top: 3px; font-style: italic; }
+
+        .urgent-badge { 
+            background: var(--urgent); color: white; padding: 3px 8px; 
+            border-radius: 8px; font-size: 0.65rem; font-weight: 800; 
+            position: absolute; top: -8px; right: 10px; animation: glow 2s infinite;
+        }
+
+        /* Profile Lifetime UI */
+        .lifetime-hero {
+            background: linear-gradient(135deg, #4338ca, #6366f1);
+            padding: 35px 20px; border-radius: 30px; text-align: center; color: white;
+            margin-bottom: 25px; border: 4px solid var(--glass-border);
+        }
+        .lifetime-hero h1 { font-size: 4rem; font-weight: 900; line-height: 1; letter-spacing: -2px; margin: 10px 0; }
+        .lifetime-hero p { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+
+        /* Taskbar */
+        .taskbar {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: var(--nav); border-top: 1px solid var(--border);
+            display: flex; justify-content: space-around; padding: 12px 0 35px;
+            backdrop-filter: blur(10px); z-index: 2000;
+        }
+        .nav-item { text-align: center; color: var(--text-s); font-size: 0.7rem; font-weight: 700; cursor: pointer; position: relative; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item.active::before { content: ''; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); width: 20px; height: 4px; background: var(--primary); border-radius: 0 0 10px 10px; }
+        .nav-item i { font-size: 1.5rem; display: block; margin-bottom: 5px; }
+
+        .view-section { display: none; }
+        .view-section.active { display: block; animation: slideIn 0.4s ease-out; }
+
+        .action-btn {
+            width: 100%; padding: 18px; border-radius: 18px; border: none;
+            background: var(--primary); color: white; font-weight: 800;
+            font-size: 1rem; cursor: pointer; box-shadow: 0 8px 20px rgba(67, 56, 202, 0.3);
+        }
+    </style>
+</head>
+<body data-theme="dark">
+
+    <div class="header">
+        <div class="header-top">
+            <div class="brand-logo">VKETC CALLER PANEL</div>
+            <div style="display: flex; gap: 15px;">
+                <i class="fas fa-moon" id="themeToggler" onclick="toggleTheme()" style="cursor:pointer; font-size: 1.3rem;"></i>
+                <i class="fas fa-clapperboard" onclick="showRolePopup()" style="cursor:pointer; color: var(--gold); font-size: 1.3rem;"></i>
+            </div>
+        </div>
+        <div class="user-profile-strip">
+            <div class="dynamic-logo" id="userInitial">V</div>
+            <div class="user-details">
+                <h2 id="pHeaderName">Aman Shrivastav</h2>
+                <span id="pRoleText">Elite Caller</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="services-view" class="view-section active">
+            <div class="rank-card">
+                <div>
+                    <p class="rank-label">PERFORMANCE RANK</p>
+                    <b class="rank-value" id="pGlobalRank">#1</b>
+                </div>
+                <i class="fas fa-crown" style="font-size: 2.5rem; color: var(--gold);"></i>
+            </div>
+
+            <div class="service-list">
+                <a href="training_calling.html" class="service-card" style="animation: float 4s infinite ease-in-out;">
+                    <div class="s-icon-box" style="color: #0ea5e9; border-color: rgba(14,165,233,0.3);"><i class="fas fa-graduation-cap"></i></div>
+                    <div class="s-info">
+                        <h4>Training Calling</h4>
+                        <p>Manage batches & student inquiries.</p>
+                    </div>
+                    <i class="fas fa-arrow-right-long move" style="margin-left: auto; color: var(--primary);"></i>
+                </a>
+
+                <a href="assigned_calls.html" class="service-card">
+                    <span class="urgent-badge" id="tagUrgent">0 Pending</span>
+                    <div class="s-icon-box" style="color: var(--urgent); border-color: rgba(225,29,72,0.3);"><i class="fas fa-phone-volume"></i></div>
+                    <div class="s-info">
+                        <h4>Urgent Calling</h4>
+                        <p>Priority candidate follow-ups.</p>
+                    </div>
+                    <i class="fas fa-arrow-right-long move" style="margin-left: auto; color: var(--primary);"></i>
+                </a><a href="exam_calls.html" class="service-card">
+                    <span class="urgent-badge" id="tagUrgent">0 Pending</span>
+                    <div class="s-icon-box" style="color: var(--urgent); border-color: rgba(225,29,72,0.3);"><i class="fas fa-phone-volume"></i></div>
+                    <div class="s-info">
+                        <h4>EXAM Calling</h4>
+                        <p>Priority candidate follow-ups.</p>
+                    </div>
+                    <i class="fas fa-arrow-right-long move" style="margin-left: auto; color: var(--primary);"></i>
+                </a>
+
+                <a href="calling_rep.html" class="service-card">
+                    <div class="s-icon-box" style="color: var(--gold);"><i class="fas fa-file-invoice-dollar"></i></div>
+                    <div class="s-info"><h4>Reports Center</h4><p>Detailed calling analytics.</p></div>
+                </a>
+
+                <a href="anyl_rep.html" class="service-card">
+                    <div class="s-icon-box" style="color: #8b5cf6;"><i class="fas fa-chart-line-up"></i></div>
+                    <div class="s-info"><h4>Leaderboard</h4><p>Check global standings.</p></div>
+                </a>
+
+                <a href="#" class="service-card">
+                    <div class="s-icon-box"><i class="fas fa-rocket-launch"></i></div>
+                    <div class="s-info"><h4>Other Services</h4><p>Modules coming soon.</p></div>
+                </a>
+            </div>
+        </div>
+
+        <div id="profile-view" class="view-section">
+            <div class="lifetime-hero">
+                <p>Lifetime Achievement</p>
+                <h1 id="pTotalLifetime">0</h1>
+                <p>TOTAL POSITIVE CALLS</p>
+            </div>
+
+            <div style="background: var(--card); border-radius: 28px; padding: 25px; border: 1px solid var(--border);">
+                <div class="info-row"><span>ID PIN</span> <b id="pPin">1**4</b></div>
+                <div class="info-row"><span>WHATSAPP</span> <b id="pMobile">N/A</b></div>
+                <div class="info-row"><span>JOINED</span> <b id="pJoined">N/A</b></div>
+                
+                <button onclick="performLogout()" style="width:100%; margin-top:25px; padding:15px; border-radius:15px; border:2px solid var(--urgent); background:transparent; color:var(--urgent); font-weight:800; cursor:pointer;">
+                    SECURE LOGOUT
+                </button>
+            </div>
+        </div>
+
+        <div id="security-view" class="view-section">
+            <div style="background: var(--card); border-radius: 28px; padding: 40px 20px; text-align: center; border: 1px solid var(--border);">
+                <i class="fas fa-user-shield" style="font-size: 3.5rem; color: var(--primary); margin-bottom: 20px;"></i>
+                <h3 style="font-weight: 800;">Privacy & Safety</h3>
+                <p style="color: var(--text-s); font-size: 0.85rem; margin-bottom: 30px; font-style: italic;">Update your credentials to keep your VKETC account protected.</p>
+                <button onclick="location.href='#'" class="action-btn">CHANGE PASSWORD</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="taskbar">
+        <div class="nav-item active" onclick="switchTab('services-view', this)"><i class="fas fa-grid-2-plus"></i><span>Work</span></div>
+        <div class="nav-item" onclick="switchTab('profile-view', this)"><i class="fas fa-user-astronaut"></i><span>Profile</span></div>
+        <div class="nav-item" onclick="switchTab('security-view', this)"><i class="fas fa-shield-keyhole"></i><span>Security</span></div>
+    </nav>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+            authDomain: "dbform-db4c9.firebaseapp.com",
+            databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "dbform-db4c9",
+            storageBucket: "dbform-db4c9.firebasestorage.app",
+            messagingSenderId: "930632470946",
+            appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const userData = JSON.parse(sessionStorage.getItem('activeUser'));
+        if (!userData) window.location.href = "../login.html";
+
+        const callerName = userData.name || "User";
+        const callerPin = String(userData.pin || userData.id || "0000");
+
+        window.onload = function() {
+            // Theme setup
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+
+            // Set Header Data
+            document.getElementById('pHeaderName').innerText = callerName;
+            document.getElementById('pRoleText').innerText = (userData.role || "Executive").toUpperCase();
+            
+            // Set Initial Logo
+            document.getElementById('userInitial').innerText = callerName.charAt(0).toUpperCase();
+
+            // Set Profile Data
+            document.getElementById('pMobile').innerText = userData.mobile || "N/A";
+            document.getElementById('pJoined').innerText = userData.joiningDate || "N/A";
+            if(callerPin.length >= 4) document.getElementById('pPin').innerText = `${callerPin[0]}**${callerPin.slice(-1)}`;
+            
+            initLiveSync();
+        };
+
+        function toggleTheme() {
+            const current = document.body.getAttribute('data-theme');
+            const target = current === 'light' ? 'dark' : 'light';
+            document.body.setAttribute('data-theme', target);
+            localStorage.setItem('theme', target);
+            updateThemeIcon(target);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('themeToggler');
+            icon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        }
+
+        function switchTab(viewId, el) {
+            document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            el.classList.add('active');
+        }
+
+        function initLiveSync() {
+            const formattedDate = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+
+            // 1. Urgent Counter
+            db.ref('UrgentCalls').on('value', snap => {
+                let pending = 0;
+                snap.forEach(c => {
+                    const t = c.val();
+                    if(!t.isClosed && (t.assignedTo === 'UNIVERSAL' || String(t.assignedTo) === callerPin)) pending++;
+                });
+                document.getElementById('tagUrgent').innerText = `${pending} Pending`;
+                document.getElementById('tagUrgent').style.display = pending > 0 ? 'inline-block' : 'none';
+            });
+
+            // 2. Lifetime Stats
+            db.ref(`MyStats/${callerName}`).on('value', snap => {
+                let total = 0;
+                snap.forEach(day => { if(typeof day.val() === 'number') total += day.val(); });
+                document.getElementById('pTotalLifetime').innerText = total;
+            });
+
+            // 3. Global Ranking (Positive % Logic)
+            db.ref('FullDataEntries').on('value', (snapshot) => {
+                let metrics = {}; 
+                snapshot.forEach(l => {
+                    l.forEach(e => {
+                        const d = e.val();
+                        if (d.lastAgent && d.lastCallTime && d.lastCallTime.includes(formattedDate)) {
+                            if (!metrics[d.lastAgent]) metrics[d.lastAgent] = { t: 0, p: 0 };
+                            metrics[d.lastAgent].t++;
+                            if (d.lastCallStatus === "ट्रेनिंग में आजायेगी") metrics[d.lastAgent].p++;
+                        }
+                    });
+                });
+                let arr = Object.keys(metrics).map(n => ({ name: n, pct: (metrics[n].p / metrics[n].t) * 100 }));
+                arr.sort((a, b) => b.pct - a.pct);
+                const rank = arr.findIndex(i => i.name === callerName) + 1;
+                document.getElementById('pGlobalRank').innerText = rank > 0 ? `#${rank}` : "#--";
+            });
+        }
+
+        function showRolePopup() {
+            let roles = userData.roles || [userData.role];
+            let html = '<div style="display:flex; flex-direction:column; gap:12px; margin-top:20px;">';
+            roles.forEach(r => {
+                html += `<button onclick="window.location.href='#'" style="padding:18px; border-radius:15px; border:1px solid var(--border); background:var(--bg); font-weight:800; color:var(--text-p); cursor:pointer;">${r}</button>`;
+            });
+            html += '</div>';
+            Swal.fire({ title: 'Switch Access', html: html, showConfirmButton: false, background: 'var(--card)', color: 'var(--text-p)' });
+        }
+
+        function performLogout() {
+            Swal.fire({
+                title: 'Logout?', text: 'Sessions will be cleared.', icon: 'warning',
+                showCancelButton: true, confirmButtonColor: '#e11d48', background: 'var(--card)', color: 'var(--text-p)'
+            }).then(r => { if(r.isConfirmed) { sessionStorage.clear(); window.location.href="../login.html"; } });
+        }
+    </script>
+</body>
+</html>

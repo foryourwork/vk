@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSSY | UPICON Master Export v6</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --red: #be123c; --red-bg: #fff1f2; --gradient: linear-gradient(135deg, #be123c, #fb7185); }
+        * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background: var(--red-bg); margin: 0; padding-bottom: 50px; }
+        .header { background: white; padding: 15px; border-bottom: 3px solid var(--red); display: flex; align-items: center; justify-content: space-between; }
+        .container { max-width: 900px; margin: 20px auto; padding: 0 15px; }
+        .card { background: white; border-radius: 24px; padding: 25px; border: 1px solid #ffe4e6; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        label { display: block; font-size: 11px; font-weight: 800; color: var(--red); margin-bottom: 8px; text-transform: uppercase; }
+        select { width: 100%; padding: 14px; border-radius: 12px; border: 2px solid #fda4af; margin-bottom: 20px; font-weight: 600; outline: none; background: #fffcfc; }
+        .btn-excel { background: #059669; color: white; width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 15px; transition: 0.3s; }
+        .btn-excel:disabled { background: #94a3b8; cursor: not-allowed; }
+        .btn-setup { background: #4f46e5; color: white; padding: 8px 15px; border-radius: 8px; border:none; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .swal-input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; max-height: 450px; overflow-y: auto; padding: 10px; }
+        .swal-input-grid label { grid-column: span 2; margin-top: 15px; color: #4f46e5; border-bottom: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex; align-items:center; gap:15px;">
+        <i class="fas fa-arrow-left" onclick="window.history.back()" style="color:var(--red); cursor:pointer;"></i>
+        <b style="color:var(--red);">UPICON FULL DATA EXPORT</b>
+    </div>
+    <button class="btn-setup" onclick="openSetupPopup()">
+        <i class="fas fa-cog"></i> SET PERMANENT SETTINGS
+    </button>
+</div>
+
+<div class="container">
+    <div class="card">
+        <label>1. Master List</label>
+        <select id="listSelect" onchange="syncTrainings()"><option value="">-- Choose List --</option></select>
+
+        <label>2. Trade Program</label>
+        <select id="trainingSelect" onchange="filterBatches()"><option value="">-- Select Trade --</option></select>
+
+        <label>3. Select Batch</label>
+        <select id="batchSelect" onchange="updateUI()"><option value="">-- Select Batch --</option></select>
+        
+        <button class="btn-excel" id="downloadBtn" onclick="exportToExcel()" disabled>
+            <i class="fas fa-file-excel"></i> DOWNLOAD UPICON EXCEL (ALL 35 COLUMNS)
+        </button>
+    </div>
+</div>
+
+<script>
+// Firebase Config
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let globalBatches = {}, globalEnrollments = {}, EMPLOYEE_LOGIN_PIN = "";
+
+window.onload = function() {
+    const sessionUser = sessionStorage.getItem('activeUser');
+    if(sessionUser) EMPLOYEE_LOGIN_PIN = JSON.parse(sessionUser).pin || "";
+
+    db.ref('OverallListsMetadata').on('value', s => {
+        const sel = document.getElementById('listSelect');
+        sel.innerHTML = '<option value="">-- Choose List --</option>';
+        s.forEach(c => { if(c.val().status !== 'Hide It') sel.innerHTML += `<option value="${c.key}">${c.val().listName}</option>`; });
+    });
+    db.ref('Batches').on('value', s => { globalBatches = s.val() || {}; });
+    db.ref('BatchEnrollments').on('value', s => { globalEnrollments = s.val() || {}; });
+};
+
+async function openSetupPopup() {
+    const saved = JSON.parse(localStorage.getItem('upicon_settings_v6') || '{}');
+    const { value: f } = await Swal.fire({
+        title: 'UPICON Format Settings',
+        width: '650px',
+        html: `<div class="swal-input-grid">
+            <label>Scheme/Trade Config</label>
+            <input id="s-sector" class="swal2-input" placeholder="Sector" value="${saved.sector || 'Apparel'}">
+            <input id="s-qp" class="swal2-input" placeholder="Qualification Pack" value="${saved.qp || 'Assistant Designer (Made Ups)'}">
+            <input id="s-qpcode" class="swal2-input" placeholder="QP Code" value="${saved.qpCode || 'AMH/Q1230'}">
+            <input id="s-level" class="swal2-input" placeholder="Level" value="${saved.level || '4'}">
+            
+            <label>Training Partner (TP)</label>
+            <input id="tp-name" class="swal2-input" placeholder="TP Name" value="${saved.tpName || 'U.P INDUSTRIAL CONSULTANTS LTD.'}">
+            <input id="tp-spoc" class="swal2-input" placeholder="TP SPOC Name" value="${saved.tpSpocName || ''}">
+            <input id="tp-mobile" class="swal2-input" placeholder="TP Mobile" value="${saved.tpSpocMobile || ''}">
+            
+            <label>Training Centre (TC)</label>
+            <input id="tc-name" class="swal2-input" placeholder="TC Name" value="${saved.tcName || 'UPICON JHANSI'}">
+            <input id="tc-spoc" class="swal2-input" placeholder="TC SPOC Name" value="${saved.tcSpocName || 'VAIBHAV KUMAR'}">
+            <input id="tc-mobile" class="swal2-input" placeholder="TC Mobile" value="${saved.tcSpocMobile || '9454791590'}">
+            <input id="tc-email" class="swal2-input" placeholder="TC Email" value="${saved.tcSpocEmail || 'vaibhav_kumar333@rediffmail.com'}">
+            
+            <label>Address</label>
+            <textarea id="s-address" class="swal2-textarea" style="grid-column:span 2">${saved.address || 'UPAYUKT UDYOG RAJKIYA PRASAR EVAM PRASHIKSHAN KENDRA KOCHHABHAWAR, JHANSI UTTAR PRADESH'}</textarea>
+        </div>`,
+        preConfirm: () => ({
+            sector: document.getElementById('s-sector').value, qp: document.getElementById('s-qp').value,
+            qpCode: document.getElementById('s-qpcode').value, level: document.getElementById('s-level').value,
+            tpName: document.getElementById('tp-name').value, tpSpocName: document.getElementById('tp-spoc').value,
+            tpSpocMobile: document.getElementById('tp-mobile').value, tcName: document.getElementById('tc-name').value,
+            tcSpocName: document.getElementById('tc-spoc').value, tcSpocMobile: document.getElementById('tc-mobile').value,
+            tcSpocEmail: document.getElementById('tc-email').value, address: document.getElementById('s-address').value
+        })
+    });
+    if(f) localStorage.setItem('upicon_settings_v6', JSON.stringify(f));
+}
+
+function syncTrainings() {
+    const lid = document.getElementById('listSelect').value;
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        const ts = document.getElementById('trainingSelect');
+        ts.innerHTML = '<option value="">-- Select Trade --</option>';
+        s.forEach(c => { ts.innerHTML += `<option value="${c.val().tradeName}">${c.val().trainingName}</option>`; });
+    });
+}
+
+function filterBatches() {
+    const trade = document.getElementById('trainingSelect').value;
+    const bs = document.getElementById('batchSelect');
+    bs.innerHTML = '<option value="">-- Select Batch --</option>';
+    for(let id in globalBatches) { if(globalBatches[id].trainingName === trade) bs.innerHTML += `<option value="${id}">${globalBatches[id].batchName}</option>`; }
+}
+
+function updateUI() { document.getElementById('downloadBtn').disabled = !document.getElementById('batchSelect').value; }
+
+// FIX: Bug fixed in parts index
+function getFmtDOB(d) {
+    if(!d || d === "N/A" || d === "" || d === undefined || d === "-") return "";
+    let dt;
+    if (typeof d === 'number') {
+        dt = new Date((d - 25569) * 86400 * 1000);
+    } else {
+        let parts = d.split('-');
+        if(parts.length === 3 && parts[0].length === 4) { 
+            dt = new Date(d); // yyyy-mm-dd
+        } else if(parts.length === 3 && parts[2].length === 4) { 
+            dt = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); // dd-mm-yyyy fix
+        } else {
+            dt = new Date(d);
+        }
+    }
+    if(isNaN(dt.getTime())) return d;
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const yyyy = dt.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+}
+
+async function exportToExcel() {
+    const st = JSON.parse(localStorage.getItem('upicon_settings_v6') || '{}');
+    const bid = document.getElementById('batchSelect').value;
+    const b = globalBatches[bid];
+    const trade = document.getElementById('trainingSelect').value;
+    const lid = document.getElementById('listSelect').value;
+
+    const { value: pin } = await Swal.fire({ title: 'PIN Verification', input: 'password' });
+    if(pin !== EMPLOYEE_LOGIN_PIN) return;
+
+    Swal.fire({ title: 'Exporting Data...', didOpen: () => Swal.showLoading() });
+
+    const fmtBatchDate = (d) => {
+        if(!d) return ""; const dt = new Date(d); const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return `${String(dt.getDate()).padStart(2, '0')}-${mon[dt.getMonth()]}-${String(dt.getFullYear()).slice(-2)}`;
+    };
+
+    try {
+        const batchCode = `UPICON-JHANSI-${trade.substring(0,4).toUpperCase()}-${b.batchName.replace(/\s/g,'').toUpperCase()}`;
+        const enrolled = globalEnrollments[bid] ? Object.keys(globalEnrollments[bid]) : [];
+        const masterSnap = await db.ref(`FullDataEntries/${lid}`).once('value');
+        const master = masterSnap.val() || {};
+
+        const columns = [
+            "Batch ID(SIP)(*)", "State/Scheme Batch ID(*)", "Training Type(*)", "Sector (*)", "Qualification Pack(*)", 
+            "QP Code(*)", "Level(*)", "Total Candidates(*)", "Batch Start Date(*)", "Batch End Date(*)", 
+            "Proposed Assessment Date(*)", "Training Partner(*)", "TP SPOC Mobile(*)", "TP SPOC Email(*)", "TP SPOC Name(*)", 
+            "Training Centre(*)", "TC SPOC Mobile(*)", "TC SPOC Email(*)", "TC SPOC Name (*)", "State (*)", 
+            "District (*)", "Constituency", "Address (*)", "Certified TC ID(*)", "Billing Name(*)", 
+            "Billing Address(*)", "GSTIN(*)", "Registration No.", "Candidate Name(*)", "Gender(*)", 
+            "Candidate Mobile Number", "Guardian Name(*)", "Caste", "Aadhar No.", "Date Of Birth"
+        ];
+
+        const data = enrolled.map(app => {
+            const m = Object.values(master).find(x => String(x.applicationNumber) === String(app)) || {};
+            return {
+                "Batch ID(SIP)(*)": batchCode,
+                "State/Scheme Batch ID(*)": batchCode,
+                "Training Type(*)": "Short Term Training",
+                "Sector (*)": st.sector || "Apparel",
+                "Qualification Pack(*)": st.qp || "Assistant Designer",
+                "QP Code(*)": st.qpCode || "AMH/Q1230",
+                "Level(*)": st.level || "4",
+                "Total Candidates(*)": enrolled.length,
+                "Batch Start Date(*)": fmtBatchDate(b.startDate),
+                "Batch End Date(*)": fmtBatchDate(b.endDate),
+                "Proposed Assessment Date(*)": fmtBatchDate(b.endDate),
+                "Training Partner(*)": st.tpName || "U.P INDUSTRIAL CONSULTANTS LTD.",
+                "TP SPOC Mobile(*)": st.tpSpocMobile || "",
+                "TP SPOC Email(*)": "training.support@upicon.in",
+                "TP SPOC Name(*)": st.tpSpocName || "",
+                "Training Centre(*)": st.tcName || "UPICON JHANSI",
+                "TC SPOC Mobile(*)": st.tcSpocMobile || "9454791590",
+                "TC SPOC Email(*)": st.tcSpocEmail || "vaibhav_kumar333@rediffmail.com",
+                "TC SPOC Name (*)": st.tcSpocName || "VAIBHAV KUMAR",
+                "State (*)": "UTTAR PRADESH",
+                "District (*)": "JHANSI",
+                "Constituency": "JHANSI",
+                "Address (*)": st.address || "",
+                "Certified TC ID(*)": "", "Billing Name(*)": "", "Billing Address(*)": "", "GSTIN(*)": "",
+                "Registration No.": m.applicationNumber || app,
+                "Candidate Name(*)": (m.applicantName || "").toUpperCase(),
+                "Gender(*)": m.gender || "Male",
+                "Candidate Mobile Number": m.mobile || m.mobileNumber || "",
+                "Guardian Name(*)": (m.fatherName || "").toUpperCase(),
+                "Caste": m.category || "OBC",
+                "Aadhar No.": m.verifiedAadhar || m.aadhar || "",
+                "Date Of Birth": getFmtDOB(m.dob || m.Date_of_Birth) // Support both field names
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(data, { header: columns });
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "UPICON_FINAL");
+        XLSX.writeFile(wb, `${batchCode}_Report.xlsx`);
+        Swal.close();
+    } catch (err) {
+        console.error(err);
+        Swal.fire('Error', 'Excel generation failed: ' + err.message, 'error');
+    }
+}
+</script>
+</body>
+</html>

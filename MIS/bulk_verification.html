@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Pro | Advanced Global Bulk Sync</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+
+    <script>
+        (function() {
+            const user = JSON.parse(sessionStorage.getItem('activeUser'));
+            if (!user || !(user.roles || [user.role]).some(r => String(r).toLowerCase() === 'mis lead')) {
+                window.location.href = "login.html";
+            }
+        })();
+    </script>
+
+    <style>
+        :root { --primary: #be123c; --success: #059669; --blue: #2563eb; --bg: #fff1f2; --text: #1e293b; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; padding: 10px; color: var(--text); }
+        
+        .top-nav { display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px 15px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 12px; border-bottom: 3px solid var(--primary); }
+        .back-icon { font-size: 18px; color: var(--primary); cursor: pointer; }
+        .stats-chip { background: var(--primary); color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+
+        .main-card { background: white; border-radius: 20px; padding: 15px; box-shadow: 0 10px 25px rgba(190,18,60,0.08); max-width: 600px; margin: 0 auto; }
+        
+        .mini-btn { width: 32px; height: 32px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.3s; font-size: 12px; }
+        .btn-dark { background: #1e293b; color: white; }
+        .btn-main { width: 100%; height: 45px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; margin-top: 10px; display: none; }
+        .mismatch-btn { display: none; background: #ef4444; color: white; width: 100%; padding: 10px; border-radius: 10px; border: none; font-weight: 700; margin-top: 10px; cursor: pointer; }
+
+        .upload-box { border: 2px dashed #fda4af; border-radius: 15px; padding: 20px; text-align: center; cursor: pointer; background: #fffcfc; margin-bottom: 10px; }
+        .upload-box i { font-size: 24px; color: var(--primary); }
+
+        /* Progress Area */
+        .progress-area { display: none; margin-bottom: 15px; border-top: 1px solid #f1f5f9; padding-top: 10px; }
+        .p-bar { height: 6px; background: #e2e8f0; border-radius: 10px; overflow: hidden; margin: 8px 0; }
+        .p-fill { height: 100%; background: var(--primary); width: 0%; transition: 0.2s; }
+        .counter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .c-item { text-align: center; font-size: 9px; font-weight: 800; padding: 6px; border-radius: 8px; background: #f8fafc; }
+        .c-item span { display: block; font-size: 14px; }
+
+        /* Preview & Pagination */
+        .preview-scroll { border: 1px solid #f1f5f9; border-radius: 12px; display: none; margin-top: 10px; background: white; }
+        table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+        th { background: #f8fafc; padding: 8px; text-align: left; color: #64748b; font-size: 9px; border-bottom: 1px solid #eee; }
+        td { padding: 8px; border-bottom: 1px solid #f1f5f9; }
+        
+        .pagination { display: flex; justify-content: center; gap: 5px; padding: 10px; background: #f8fafc; border-top: 1px solid #eee; border-radius: 0 0 12px 12px; }
+        .p-node { padding: 4px 8px; border-radius: 4px; background: white; border: 1px solid #ddd; cursor: pointer; font-size: 10px; font-weight: 700; }
+        .p-node.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .status-badge { font-size: 14px; cursor: help; }
+    </style>
+</head>
+<body>
+
+<div class="top-nav">
+    <i class="fas fa-arrow-left back-icon" onclick="window.history.back()"></i>
+    <div class="stats-chip">
+        <i class="fas fa-check-double"></i> TODAY: <span id="todayStat">0</span>
+    </div>
+    <button class="mini-btn btn-dark" onclick="downloadSample()" title="Download Format"><i class="fas fa-download"></i></button>
+</div>
+
+<div class="main-card animate__animated animate__fadeIn">
+    <div class="upload-box" id="dropArea" onclick="document.getElementById('fileIn').click()">
+        <i class="fas fa-cloud-upload-alt"></i>
+        <p id="fileLabel" style="font-size: 11px; font-weight: 700; color: #64748b; margin: 5px 0 0;">Upload Verification Excel</p>
+        <input type="file" id="fileIn" hidden accept=".xlsx, .xls" onchange="handleExcel(this)">
+    </div>
+
+    <div class="progress-area" id="progZone">
+        <div class="p-bar"><div class="p-fill" id="pFill"></div></div>
+        <div class="counter-grid">
+            <div class="c-item" style="color: var(--success);"><span id="vNum">0</span>VERIFIED</div>
+            <div class="c-item" style="color: var(--blue);"><span id="uNum">0</span>UPDATED</div>
+            <div class="c-item" style="color: #ef4444;"><span id="fNum">0</span>FAILED</div>
+        </div>
+    </div>
+
+    <div class="preview-scroll" id="prevZone">
+        <table>
+            <thead><tr><th>APP NO</th><th>CANDIDATE INFO</th><th>AADHAR</th><th>STATUS</th></tr></thead>
+            <tbody id="prevBody"></tbody>
+        </table>
+        <div id="pagination" class="pagination"></div>
+    </div>
+
+    <button class="btn-main" id="startBtn" onclick="runGlobalSync()">
+        <i class="fas fa-bolt"></i> START GLOBAL SYNC
+    </button>
+    
+    <button class="mismatch-btn" id="missBtn" onclick="downloadMismatches()">
+        <i class="fas fa-file-excel"></i> DOWNLOAD MISMATCH REPORT
+    </button>
+</div>
+
+<script>
+// Firebase Config
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const user = JSON.parse(sessionStorage.getItem('activeUser'));
+let excelRows = [], mismatches = [], allLists = [], page = 1, pageSize = 10;
+const todayKey = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+
+window.onload = async () => {
+    // Listen to Today's Unique Counts
+    db.ref(`DailyVerificationLogs/${todayKey}`).on('value', s => {
+        document.getElementById('todayStat').innerText = s.numChildren();
+    });
+    
+    const lSnap = await db.ref('OverallListsMetadata').once('value');
+    lSnap.forEach(l => allLists.push(l.key));
+};
+
+function downloadSample() {
+    const ws = XLSX.utils.aoa_to_sheet([["Application Number", "Aadhar Number"], ["APP101", "123456789012"]]);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sync");
+    XLSX.writeFile(wb, "Sample_Format.xlsx");
+}
+
+async function handleExcel(input) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+        excelRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+        if(excelRows.length > 0) {
+            page = 1;
+            document.getElementById('fileLabel').innerText = `${excelRows.length} Rows Loaded`;
+            document.getElementById('prevZone').style.display = 'block';
+            document.getElementById('startBtn').style.display = 'block';
+            renderPreview();
+        }
+    };
+    reader.readAsArrayBuffer(input.files[0]);
+}
+
+async function renderPreview() {
+    const start = (page - 1) * pageSize;
+    const end = start + pageSize;
+    const items = excelRows.slice(start, end);
+    const body = document.getElementById('prevBody');
+    body.innerHTML = "<tr><td colspan='4' style='text-align:center;'>Fetching Names...</td></tr>";
+    
+    let html = '';
+    for(let row of items) {
+        const appNo = String(row['Application Number']).trim().toUpperCase();
+        let name = "...", father = "...";
+
+        // Global Lookup for Names
+        for(let lid of allLists) {
+            const snap = await db.ref(`FullDataEntries/${lid}`).orderByChild('applicationNumber').equalTo(appNo).once('value');
+            if(snap.exists()) {
+                snap.forEach(c => { name = c.val().applicantName; father = c.val().fatherName; });
+                break;
+            }
+        }
+
+        html += `<tr id="row-${appNo}">
+            <td><b>${appNo}</b></td>
+            <td>${name}<br><small style="color:#64748b">${father}</small></td>
+            <td>${row['Aadhar Number']}</td>
+            <td id="stat-${appNo}" class="status-badge">⏳</td>
+        </tr>`;
+    }
+    body.innerHTML = html;
+    renderPagination();
+}
+
+function renderPagination() {
+    const totalPages = Math.ceil(excelRows.length / pageSize);
+    let h = '';
+    if(totalPages > 1) {
+        const start = Math.max(1, page - 2);
+        const end = Math.min(totalPages, page + 2);
+        for(let i=start; i<=end; i++) {
+            h += `<div class="p-node ${i===page?'active':''}" onclick="setPage(${i})">${i}</div>`;
+        }
+    }
+    document.getElementById('pagination').innerHTML = h;
+}
+
+function setPage(p) { page = p; renderPreview(); }
+
+async function runGlobalSync() {
+    document.getElementById('startBtn').style.display = 'none';
+    document.getElementById('progZone').style.display = 'block';
+    
+    let v=0, u=0, f=0;
+    mismatches = [];
+    const total = excelRows.length;
+    const now = new Date().toLocaleString('en-GB');
+
+    for(let i=0; i<total; i++) {
+        const row = excelRows[i];
+        const appNo = String(row['Application Number']).trim().toUpperCase();
+        const aadhar = String(row['Aadhar Number'] || "").trim();
+        const statEl = document.getElementById(`stat-${appNo}`);
+        let found = false, reason = "";
+
+        if(aadhar.length !== 12 || isNaN(aadhar)) {
+            reason = "Aadhar Invalid (Must be 12 digits)";
+        } else {
+            for(let lid of allLists) {
+                const snap = await db.ref(`FullDataEntries/${lid}`).orderByChild('applicationNumber').equalTo(appNo).once('value');
+                if(snap.exists()) {
+                    snap.forEach(child => {
+                        const isUpdate = child.val().isVerified;
+                        db.ref(`FullDataEntries/${lid}/${child.key}`).update({
+                            isVerified: true, verifiedAadhar: aadhar,
+                            verifiedBy: user.name, verifiedDate: now, status: "VERIFIED"
+                        });
+                        
+                        // Add to Daily Log node to prevent double counting
+                        db.ref(`DailyVerificationLogs/${todayKey}/${appNo}`).set({ time: now, by: user.name });
+
+                        if(isUpdate) { u++; if(statEl) statEl.innerHTML = "🔄"; } 
+                        else { v++; if(statEl) statEl.innerHTML = "✅"; }
+                        found = true;
+                    });
+                    break;
+                }
+            }
+            if(!found) reason = "Application Number Not Found";
+        }
+
+        if(!found || reason) { 
+            f++; 
+            mismatches.push({...row, Reason: reason || "Unknown Error"});
+            if(statEl) statEl.innerHTML = "❌"; 
+        }
+
+        document.getElementById('pFill').style.width = ((i+1)/total)*100 + '%';
+        document.getElementById('vNum').innerText = v;
+        document.getElementById('uNum').innerText = u;
+        document.getElementById('fNum').innerText = f;
+    }
+
+    if(mismatches.length > 0) document.getElementById('missBtn').style.display = 'block';
+    Swal.fire('Complete', `${v+u} Processed Successfully.`, 'success');
+}
+
+function downloadMismatches() {
+    const ws = XLSX.utils.json_to_sheet(mismatches);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Failed");
+    XLSX.writeFile(wb, `Mismatch_Report_${todayKey}.xlsx`);
+}
+</script>
+</body>
+</html>

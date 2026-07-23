@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Smart Batch Optimizer Final</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --red: #be123c; --red-bg: #fff1f2; --success: #059669; --gradient: linear-gradient(135deg, #be123c, #fb7185); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--red-bg); margin: 0; color: #1e293b; overflow-x: hidden; }
+        
+        #lockScreen { position: fixed; inset: 0; background: white; z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+        .header { background: white; padding: 12px 15px; border-bottom: 3px solid var(--red); position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; }
+        .container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 12px; }
+        .banner { background: var(--gradient); color: white; padding: 25px; border-radius: 24px; text-align: center; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(190, 18, 60, 0.2); }
+        .card { background: white; border-radius: 24px; padding: 25px; margin-bottom: 20px; border: 1px solid #ffe4e6; }
+        label { display: block; font-size: 11px; font-weight: 800; color: var(--red); margin-bottom: 8px; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+        input, select, textarea { width: 100%; padding: 12px; border-radius: 12px; border: 2px solid #fda4af; margin-bottom: 15px; font-weight: 600; font-size: 14px; outline: none; transition: 0.3s; background: #fffcfc; }
+        
+        /* Filter Panel */
+        .filter-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; background: white; padding: 15px; border-radius: 20px; border: 1px solid #ffe4e6; margin-bottom: 15px; }
+
+        .btn { border: none; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; color: white; font-size: 14px; width: 100%; transition: 0.3s; text-transform: uppercase; }
+        .btn-main { background: var(--gradient); }
+        .btn-cancel { background: #64748b; margin-top: 10px; display: none; }
+        
+        .table-wrapper { margin-top: 15px; overflow-x: auto; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+        td { background: white; padding: 15px; border-top: 1px solid #ffe4e6; border-bottom: 1px solid #ffe4e6; font-size: 13px; }
+        td:first-child { border-left: 1px solid #ffe4e6; border-radius: 15px 0 0 15px; }
+        td:last-child { border-right: 1px solid #ffe4e6; border-radius: 0 15px 15px 0; }
+
+        .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 20px; padding-bottom: 40px; }
+        .p-node { width: 35px; height: 35px; border-radius: 10px; border: 1.5px solid var(--red); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--red); font-weight: 800; background: white; }
+        .p-node.active { background: var(--red); color: white; }
+
+        .status-badge { padding: 4px 10px; border-radius: 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+        .st-upcoming { background: #fef3c7; color: #92400e; }
+        .st-progress { background: #dcfce7; color: #166534; }
+        .st-completed { background: #e2e8f0; color: #475569; }
+
+        @media (max-width: 768px) {
+            table, thead, tbody, th, td, tr { display: block; } thead { display: none; }
+            tr { margin-bottom: 15px; border: 1px solid #ffe4e6; border-radius: 15px; padding: 10px; background: white; }
+            td { text-align: right; position: relative; padding-left: 45%; border: none !important; margin-bottom: 5px; }
+            td:before { content: attr(data-label); position: absolute; left: 10px; font-weight: 800; color: var(--red); font-size: 10px; text-transform: uppercase; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="lockScreen">
+    <img src="https://cdn-icons-png.flaticon.com/512/6195/6195699.png" width="100">
+    <h2 style="color:var(--red); font-weight:800;">ACCESS DENIED</h2>
+</div>
+
+<div class="header">
+    <div style="display:flex; align-items:center;">
+        <div onclick="window.history.back()" style="cursor:pointer; color:var(--red); font-size: 20px;"><i class="fas fa-arrow-left"></i></div>
+        <div style="margin-left: 12px;">
+            <h2 id="roleLabel" style="font-size:10px; color:var(--red); font-weight:800; margin:0;">BATCH LEAD</h2>
+            <div id="uName" style="font-size:14px; font-weight:700;">Admin</div>
+        </div>
+    </div>
+    <div id="clock" style="font-size:11px; font-weight:800; color: var(--red);"></div>
+</div>
+
+<div class="container">
+    <div class="banner">
+        <b>SMART BATCH OPTIMIZER</b>
+        <p style="font-size:11px; margin-top:5px; opacity:0.9;">Sequential Naming & Intelligent Status Tracking</p>
+    </div>
+
+    <div class="card animate__animated animate__fadeInUp">
+        <input type="hidden" id="editBatchId">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+            <div>
+                <label>Master List Source</label>
+                <select id="listSelect" onchange="fetchTrainings(this.value)"></select>
+            </div>
+            <div>
+                <label>Target Trade/Program</label>
+                <select id="trainingSelect" onchange="generateBatchNameAndLimit()"></select>
+            </div>
+            <div>
+                <label>Auto Batch Name</label>
+                <input type="text" id="batchName" readonly placeholder="Auto Generated">
+            </div>
+            <div>
+                <label>Batch Status</label>
+                <select id="batchStatus">
+                    <option value="Upcoming">Upcoming</option>
+                    <option value="In Progress" selected>In Progress</option>
+                    <option value="Completed">Completed</option>
+                </select>
+            </div>
+            <div>
+                <label>Start Date</label>
+                <input type="date" id="startDate" onchange="autoEndDate(this.value)">
+            </div>
+            <div>
+                <label>End Date</label>
+                <input type="date" id="endDate">
+            </div>
+            <div>
+                <label>Capacity (Sync)</label>
+                <input type="number" id="limit" readonly>
+            </div>
+        </div>
+        <button class="btn btn-main" style="margin-top:20px;" onclick="saveBatch()">SYNC & SAVE BATCH</button>
+        <button class="btn btn-cancel" id="cancelBtn" onclick="resetForm()">DISCARD</button>
+    </div>
+
+    <div class="filter-panel animate__animated animate__fadeIn">
+        <input type="text" id="tableSearch" placeholder="🔍 Search Batch or Trade..." oninput="filterData()">
+        <select id="filterList" onchange="filterData()">
+            <option value="ALL">All Master Lists</option>
+        </select>
+        <select id="filterStatus" onchange="filterData()">
+            <option value="ALL">All Status</option>
+            <option value="Upcoming">Upcoming</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+        </select>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead><tr><th>Master List</th><th>Batch Name</th><th>Trade</th><th>Status</th><th>Timeline</th><th>Enrolled</th><th>Actions</th></tr></thead>
+            <tbody id="batchTableBody"></tbody>
+        </table>
+    </div>
+    <div id="pagination" class="pagination"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allBatches = [], filteredData = [], allTrainings = [], enrollmentsMap = {}, EMPLOYEE_LOGIN_PIN = "";
+let curPage = 1, pageSize = 8;
+
+const sessionUser = sessionStorage.getItem('activeUser');
+if(!sessionUser) {
+    document.getElementById('lockScreen').style.display = 'flex';
+} else {
+    const userData = JSON.parse(sessionUser);
+    document.getElementById('uName').innerText = userData.name || "Admin";
+    EMPLOYEE_LOGIN_PIN = userData.pin || userData.password || ""; 
+}
+
+window.onload = function() {
+    setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleString('en-IN'); }, 1000);
+    
+    db.ref('OverallListsMetadata').on('value', snap => {
+        const sel = document.getElementById('listSelect');
+        const fSel = document.getElementById('filterList');
+        sel.innerHTML = '<option value="">-- Choose List --</option>';
+        fSel.innerHTML = '<option value="ALL">All Master Lists</option>';
+        snap.forEach(c => {
+            const list = c.val();
+            if(list.status !== 'Hide It') {
+                const opt = `<option value="${c.key}">${list.listName || 'Unnamed List'}</option>`;
+                sel.innerHTML += opt;
+                fSel.innerHTML += opt;
+            }
+        });
+    });
+
+    db.ref('Trainings').on('value', snap => {
+        allTrainings = []; 
+        snap.forEach(c => { allTrainings.push({id: c.key, ...c.val()}); });
+    });
+
+    db.ref('BatchEnrollments').on('value', snap => { 
+        enrollmentsMap = snap.val() || {}; 
+        loadBatches(); 
+    });
+};
+
+function fetchTrainings(listId) {
+    const ts = document.getElementById('trainingSelect');
+    ts.innerHTML = '<option value="">-- Select Trade --</option>';
+    if(!listId) return;
+    allTrainings.filter(t => t.listId === listId).forEach(t => {
+        ts.innerHTML += `<option value="${t.tradeName}" data-limit="${t.maxBatchSize || 30}">${t.trainingName || t.tradeName}</option>`;
+    });
+}
+
+function generateBatchNameAndLimit() {
+    const editId = document.getElementById('editBatchId').value;
+    if (editId) return; 
+
+    const listId = document.getElementById('listSelect').value;
+    const trade = document.getElementById('trainingSelect').value;
+    const select = document.getElementById('trainingSelect');
+    const limit = select.options[select.selectedIndex]?.getAttribute('data-limit');
+    
+    if(!listId || !trade) return;
+
+    const count = allBatches.filter(b => b.listId === listId && b.trainingName === trade).length;
+    document.getElementById('batchName').value = `BATCH ${count + 1}`;
+    document.getElementById('limit').value = limit || 30;
+}
+
+function autoEndDate(start) {
+    if(!start) return;
+    const date = new Date(start);
+    date.setDate(date.getDate() + 10);
+    document.getElementById('endDate').value = date.toISOString().split('T')[0];
+}
+
+async function saveBatch() {
+    const id = document.getElementById('editBatchId').value;
+    const listSel = document.getElementById('listSelect');
+    if(!listSel.value) return Swal.fire('Error', 'Master List is required', 'warning');
+
+    const data = {
+        listId: listSel.value,
+        listName: listSel.options[listSel.selectedIndex].text,
+        trainingName: document.getElementById('trainingSelect').value,
+        batchName: document.getElementById('batchName').value,
+        status: document.getElementById('batchStatus').value,
+        startDate: document.getElementById('startDate').value || '',
+        endDate: document.getElementById('endDate').value || '',
+        limit: document.getElementById('limit').value || 30,
+        updatedAt: new Date().toISOString()
+    };
+    
+    if(id) await db.ref(`Batches/${id}`).update(data);
+    else { data.createdAt = new Date().toISOString(); await db.ref('Batches').push(data); }
+    
+    Swal.fire('Success', 'Batch Synchronized', 'success');
+    resetForm();
+}
+
+function loadBatches() {
+    db.ref('Batches').on('value', snap => {
+        allBatches = [];
+        const today = new Date();
+        snap.forEach(c => {
+            let b = c.val(); b.id = c.key;
+            if(!b.status) b.status = 'In Progress';
+            if(b.endDate && b.status !== 'Completed') {
+                const endLimit = new Date(b.endDate);
+                endLimit.setDate(endLimit.getDate() + 10);
+                if(today > endLimit) {
+                    db.ref(`Batches/${b.id}`).update({ status: 'Completed' });
+                    b.status = 'Completed';
+                }
+            }
+            b.studentCount = enrollmentsMap[b.id] ? Object.keys(enrollmentsMap[b.id]).length : 0;
+            allBatches.push(b);
+        });
+        filterData();
+    });
+}
+
+function filterData() {
+    const q = document.getElementById('tableSearch').value.toLowerCase();
+    const fList = document.getElementById('filterList').value;
+    const fStat = document.getElementById('filterStatus').value;
+    
+    filteredData = allBatches.filter(b => {
+        const mQ = b.batchName.toLowerCase().includes(q) || b.trainingName.toLowerCase().includes(q);
+        const mL = fList === 'ALL' || b.listId === fList;
+        const mS = fStat === 'ALL' || b.status === fStat;
+        return mQ && mL && mS;
+    });
+    curPage = 1;
+    renderBatches();
+}
+
+function renderBatches() {
+    const tbody = document.getElementById('batchTableBody');
+    tbody.innerHTML = '';
+    
+    const start = (curPage - 1) * pageSize;
+    const paginated = filteredData.slice(start, start + pageSize);
+
+    paginated.forEach(b => {
+        const sCls = b.status === 'In Progress' ? 'st-progress' : (b.status === 'Completed' ? 'st-completed' : 'st-upcoming');
+        tbody.innerHTML += `
+            <tr class="animate__animated animate__fadeIn">
+                <td data-label="Master List">${b.listName || 'N/A'}</td>
+                <td data-label="Batch Name"><b>${b.batchName || 'N/A'}</b></td>
+                <td data-label="Trade">${b.trainingName || 'N/A'}</td>
+                <td data-label="Status"><span class="status-badge ${sCls}">${b.status}</span></td>
+                <td data-label="Timeline">${(b.startDate || '--')} / ${(b.endDate || '--')}</td>
+                <td data-label="Enrolled">${b.studentCount} / ${b.limit || 0}</td>
+                <td data-label="Actions">
+                    <div style="display:flex; gap:5px; justify-content: flex-end;">
+                        <button onclick="editBatch('${b.id}')" style="background:#0ea5e9; border:none; padding:8px; border-radius:8px; color:white;"><i class="fas fa-edit"></i></button>
+                        <button onclick="deleteBatch('${b.id}')" style="background:var(--red); border:none; padding:8px; border-radius:8px; color:white;"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            </tr>`;
+    });
+    renderPagination();
+}
+
+function renderPagination() {
+    const container = document.getElementById('pagination');
+    container.innerHTML = '';
+    const pages = Math.ceil(filteredData.length / pageSize);
+    if(pages <= 1) return;
+    for(let i=1; i<=pages; i++) {
+        container.innerHTML += `<div class="p-node ${i===curPage?'active':''}" onclick="toPage(${i})">${i}</div>`;
+    }
+}
+
+function toPage(p) { curPage = p; renderBatches(); }
+
+window.deleteBatch = async (id) => {
+    const { value: pin } = await Swal.fire({ title: 'PIN Required', text: 'Enter LOGIN PIN', input: 'password', showCancelButton: true });
+    if (pin === EMPLOYEE_LOGIN_PIN && pin !== "") {
+        await db.ref(`Batches/${id}`).remove();
+        Swal.fire('Deleted', 'Record removed from cloud', 'success');
+    } else if (pin !== undefined) Swal.fire('Error', 'Incorrect PIN', 'error');
+};
+
+function editBatch(id) {
+    const b = allBatches.find(x => x.id === id);
+    if(!b) return;
+    document.getElementById('editBatchId').value = b.id;
+    document.getElementById('listSelect').value = b.listId || '';
+    fetchTrainings(b.listId);
+    setTimeout(() => {
+        document.getElementById('trainingSelect').value = b.trainingName || '';
+        document.getElementById('batchName').value = b.batchName || '';
+        document.getElementById('batchStatus').value = b.status || 'In Progress';
+        document.getElementById('startDate').value = b.startDate || '';
+        document.getElementById('endDate').value = b.endDate || '';
+        document.getElementById('limit').value = b.limit || 0;
+    }, 300);
+    document.getElementById('cancelBtn').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function resetForm() {
+    document.getElementById('editBatchId').value = '';
+    document.getElementById('cancelBtn').style.display = 'none';
+}
+</script>
+</body>
+</html>

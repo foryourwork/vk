@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Verified Report</title>
+    
+    <script>
+        const activeUser = JSON.parse(sessionStorage.getItem('activeUser'));
+        if (!activeUser) {
+            window.location.href = "../login.html";
+        }
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { 
+            --accent: #4f46e5; 
+            --success: #10b981; 
+            --bg: #f8fafc; 
+            --glass: rgba(255, 255, 255, 0.9);
+        }
+
+        * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background: var(--bg); margin: 0; color: #1e293b; }
+
+        .header { 
+            background: var(--glass); backdrop-filter: blur(12px);
+            padding: 12px 20px; border-bottom: 1px solid #e2e8f0; 
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+        }
+
+        .user-info-box { text-align: right; }
+        .emp-name { display: block; font-weight: 800; color: var(--accent); font-size: 15px; }
+        .emp-role { font-size: 10px; background: #eef2ff; padding: 2px 8px; border-radius: 4px; color: #6366f1; text-transform: uppercase; }
+
+        .back-btn { background: #f1f5f9; border: none; color: #475569; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: 0.2s; }
+        .back-btn:hover { background: var(--accent); color: white; }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+        .filter-card { 
+            background: white; border-radius: 24px; padding: 20px; 
+            margin-bottom: 25px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
+            border: 1px solid #f1f5f9;
+        }
+
+        .grid-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        label { display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px; }
+        select, input { 
+            width: 100%; padding: 12px 15px; border-radius: 12px; border: 1.5px solid #e2e8f0; 
+            outline: none; font-size: 14px; transition: 0.3s; background: #fdfdfd;
+        }
+        select:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px #eef2ff; }
+
+        .report-item { 
+            background: white; border-radius: 20px; padding: 20px; margin-bottom: 15px; 
+            display: flex; justify-content: space-between; align-items: center;
+            border-left: 6px solid var(--accent); border: 1px solid #f1f5f9;
+            transition: 0.3s;
+        }
+        .report-item:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+
+        .info b { display: block; font-size: 17px; color: #0f172a; margin-bottom: 4px; }
+        .info span { font-size: 13px; color: #64748b; display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+        .masked-id { background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-family: monospace; }
+        .aadhaar-box { color: var(--accent); font-weight: 700; letter-spacing: 0.5px; }
+
+        .bio-btn { 
+            width: 45px; height: 45px; border-radius: 12px; border: none; 
+            cursor: pointer; transition: 0.3s; font-size: 16px;
+        }
+        .bio-pending { background: #fef2f2; color: #ef4444; }
+        .bio-done { background: #ecfdf5; color: var(--success); }
+
+        .empty-state { text-align: center; padding: 60px; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex; align-items:center; gap:12px;">
+        <button class="back-btn" onclick="window.history.back()"><i class="fas fa-arrow-left"></i></button>
+        <h2 style="margin:0; font-size:16px; font-weight:800; letter-spacing:-0.5px;">VERIFIED REPORT</h2>
+    </div>
+    <div class="user-info-box">
+        <span class="emp-name" id="userNameDisplay">Loading...</span>
+        <span class="emp-role" id="userRoleDisplay">Employee</span>
+    </div>
+</div>
+
+<div class="container">
+    <div class="filter-card">
+        <div class="grid-filters">
+            <div>
+                <label><i class="fas fa-calendar-alt"></i> Date</label>
+                <input type="date" id="reportDate" onchange="applyFilters()">
+            </div>
+            <div>
+                <label><i class="fas fa-layer-group"></i> Active Master List</label>
+                <select id="listSelect" onchange="syncTrainings()"><option value="">-- Choose List --</option></select>
+            </div>
+            <div>
+                <label><i class="fas fa-graduation-cap"></i> Active Training</label>
+                <select id="trainingSelect" onchange="applyFilters()"><option value="">-- Choose Training --</option></select>
+            </div>
+        </div>
+        <div style="margin-top: 15px;">
+            <input type="text" id="searchInput" placeholder="Search by Name, Aadhaar (Last 4), or ID..." oninput="applyFilters()">
+        </div>
+    </div>
+
+    <div id="reportList"></div>
+</div>
+
+<script>
+// Firebase Initialization
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let fullDataLocal = [];
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser'));
+
+// Helper Functions
+function maskID(id) { return id ? String(id).substring(6) : "N/A"; }
+function maskAadhaar(num) {
+    if(!num) return "xxxx xxxx xxxx";
+    let s = String(num);
+    return `xxxx xxxx ${s.slice(-4)}`;
+}
+
+window.onload = () => {
+    if(currentUser) {
+        document.getElementById('userNameDisplay').innerText = currentUser.name;
+        document.getElementById('userRoleDisplay').innerText = currentUser.role || 'Employee';
+    }
+    
+    document.getElementById('reportDate').valueAsDate = new Date();
+
+    // MODIFIED: Fetch ONLY "In Progress" Master Lists
+    db.ref('OverallListsMetadata').once('value', s => {
+        let h = '<option value="">-- Choose Master List --</option>';
+        s.forEach(c => { 
+            const list = c.val();
+            // Matching "In Progress" exactly as saved in list manager
+            if(list.status === "In Progress") {
+                h += `<option value="${c.key}">${list.listName}</option>`; 
+            }
+        });
+        document.getElementById('listSelect').innerHTML = h;
+    });
+};
+
+async function syncTrainings() {
+    const lid = document.getElementById('listSelect').value;
+    if(!lid) return;
+
+    // MODIFIED: Fetch ONLY "In Progress" Trainings for selected list
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        let h = '<option value="">-- Select Training --</option>';
+        s.forEach(c => { 
+            const t = c.val();
+            // Matching "In Progress" exactly as saved in training control center
+            if(t.status === "In Progress") {
+                h += `<option value="${t.tradeName}">${t.trainingName}</option>`; 
+            }
+        });
+        document.getElementById('trainingSelect').innerHTML = h;
+    });
+
+    Swal.fire({ title: 'Loading...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+    
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    fullDataLocal = [];
+    snap.forEach(c => { fullDataLocal.push({...c.val(), dbKey: c.key}); });
+    
+    Swal.close();
+    applyFilters();
+}
+
+function applyFilters() {
+    const dateVal = document.getElementById('reportDate').value;
+    const trade = document.getElementById('trainingSelect').value;
+    const search = document.getElementById('searchInput').value.trim().toLowerCase();
+    
+    if(!trade) {
+        document.getElementById('reportList').innerHTML = '<div class="empty-state"><i class="fas fa-info-circle fa-2x"></i><p>कृपया ट्रेनिंग का चयन करें।</p></div>';
+        return;
+    }
+
+    const targetDate = new Date(dateVal).toLocaleDateString('en-GB');
+    let h = '';
+
+    fullDataLocal.forEach(d => {
+        const maskedId = maskID(d.applicationNumber);
+        const rawAadhar = String(d.verifiedAadhar || d.verifiedAadharNumber || "");
+        
+        // Match conditions: Verified + Correct Date + Correct Training + Search Match
+        const matchesDate = d.isVerified && d.verifiedDate && d.verifiedDate.includes(targetDate);
+        const matchesTrade = d.tradeName === trade;
+        const matchesSearch = !search || 
+                              d.applicantName.toLowerCase().includes(search) || 
+                              maskedId.toLowerCase().includes(search) ||
+                              rawAadhar.includes(search);
+
+        if(matchesDate && matchesTrade && matchesSearch) {
+            const bioStatus = d.biometricUpdated === "Yes";
+            h += `
+            <div class="report-item">
+                <div class="info">
+                    <b>${d.applicantName}</b>
+                    <span><i class="fas fa-fingerprint"></i> Aadhaar: <span class="aadhaar-box">${maskAadhaar(rawAadhar)}</span></span>
+                    <span><i class="fas fa-id-card"></i> ID: <span class="masked-id">${maskedId}</span></span>
+                    <span><i class="fas fa-user-friends"></i> F/H: ${d.fatherName || 'N/A'}</span>
+                    <span style="font-size:11px; font-weight:700; margin-top:5px; color:var(--accent)"><i class="fas fa-user-check"></i> Verified By: ${d.verifiedBy || 'System'}</span>
+                </div>
+                <div class="actions" style="text-align:center">
+                    <button class="bio-btn ${bioStatus ? 'bio-done' : 'bio-pending'}" onclick="updateBio('${d.dbKey}', '${d.applicantName}', ${bioStatus})">
+                        <i class="fas ${bioStatus ? 'fa-check' : 'fa-fingerprint'}"></i>
+                    </button>
+                    <div style="font-size:8px; font-weight:800; margin-top:5px; color:#64748b">BIO STATUS</div>
+                </div>
+            </div>`;
+        }
+    });
+
+    document.getElementById('reportList').innerHTML = h || '<div class="empty-state"><p>इस फिल्टर के साथ कोई रिकॉर्ड नहीं मिला।</p></div>';
+}
+
+async function updateBio(key, name, status) {
+    if(status) return; // Already updated
+
+    const { isConfirmed } = await Swal.fire({
+        title: 'Biometric Confirmation',
+        text: `क्या ${name} का बायोमेट्रिक सफलतापूर्वक हो गया है?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Yes, Updated'
+    });
+
+    if(isConfirmed) {
+        const lid = document.getElementById('listSelect').value;
+        const updateTime = new Date().toLocaleString('en-GB');
+        
+        try {
+            await db.ref(`FullDataEntries/${lid}/${key}`).update({
+                biometricUpdated: "Yes",
+                biometricUpdateDate: updateTime
+            });
+            
+            // Local data update to avoid re-fetch
+            const index = fullDataLocal.findIndex(item => item.dbKey === key);
+            if(index !== -1) fullDataLocal[index].biometricUpdated = "Yes";
+            
+            applyFilters();
+            Swal.fire('Saved!', 'Biometric status update ho gaya hai.', 'success');
+        } catch (e) {
+            Swal.fire('Error', 'Data save nahi ho paya.', 'error');
+        }
+    }
+}
+</script>
+</body>
+</html>

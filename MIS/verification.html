@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | MIS Lead Master Control v5.3</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #be123c; --success: #059669; --info: #0284c7; --warning: #f59e0b; --bg: #fff1f2; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; padding-bottom: 50px; user-select: none; }
+
+        .header { background: linear-gradient(135deg, #be123c, #fb7185); padding: 15px; color: white; position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; gap: 15px; }
+        .container { width: 100%; max-width: 600px; margin: 0 auto; padding: 10px; }
+
+        .stats-container { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-card { background: white; padding: 12px; border-radius: 16px; border: 1px solid #fecdd3; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .stat-card h4 { margin: 0 0 8px 0; font-size: 10px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #f1f5f9; }
+        .stat-row { display: flex; justify-content: space-between; margin-top: 5px; font-weight: 800; font-size: 14px; }
+        .stat-row span { font-size: 9px; color: #94a3b8; }
+
+        .search-panel { background: white; border-radius: 22px; padding: 18px; margin-bottom: 20px; border: 1px solid #fecdd3; }
+        select, input { width: 100%; padding: 13px; border-radius: 12px; border: 2px solid #fff1f2; margin-bottom: 10px; background: #fff1f2; font-weight: 600; outline: none; }
+        .btn-search { width: 100%; background: var(--primary); color: white; padding: 15px; border-radius: 12px; border: none; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+        .card { background: white; border-radius: 20px; padding: 18px; margin-bottom: 15px; border: 1.5px solid #fecdd3; position: relative; transition: 0.3s; }
+        .card-verified { border-left: 8px solid var(--success); background: #f0fdf4; }
+        .card-absent { border-left: 8px solid var(--primary); background: #fef2f2; }
+        .card-calling { border-left: 8px solid var(--info); background: #f0f9ff; }
+        .card-batch { border-left: 8px solid var(--warning); background: #fffbeb; }
+
+        .copyable { background: rgba(255,255,255,0.8); padding: 8px 12px; border-radius: 10px; font-size: 11px; font-weight: 700; color: #475569; display: inline-flex; align-items: center; gap: 8px; margin: 4px 2px; border: 1px solid #e2e8f0; cursor: pointer; }
+        .copyable:active { background: #e2e8f0; transform: scale(0.95); }
+
+        .log-box { background: rgba(255,255,255,0.6); padding: 12px; border-radius: 15px; margin-top: 10px; font-size: 11px; border: 1px solid #e2e8f0; }
+        .btn-verify { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; margin-top: 15px; }
+        .btn-verify:disabled { background: #cbd5e1; cursor: not-allowed; }
+        .btn-rollback { width: 100%; background: #fee2e2; color: var(--primary); border: none; padding: 10px; border-radius: 10px; font-weight: 800; cursor: pointer; margin-top: 8px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<script>
+    const activeUser = JSON.parse(sessionStorage.getItem('activeUser'));
+    if (!activeUser || !activeUser.name) {
+        window.location.href = "login.html"; // Login page redirect
+    }
+</script>
+
+<div class="header">
+    <div onclick="window.history.back()" style="cursor:pointer;"><i class="fas fa-arrow-left"></i></div>
+    <div style="flex-grow: 1;"><h2 style="margin:0; font-size:15px; font-weight:800;">MIS LEAD MASTER PRO</h2></div>
+    <div style="font-size: 10px; text-align: right;">
+        Logged as:<br><b><span id="currentUserLabel">--</span></b>
+    </div>
+</div>
+
+<div class="container">
+    <div class="stats-container">
+        <div class="stat-card">
+            <h4>TODAY (AJ)</h4>
+            <div class="stat-row"><span>Verified:</span><b id="v-today" style="color:var(--success)">0</b></div>
+            <div class="stat-row"><span>Calling:</span><b id="c-today" style="color:var(--info)">0</b></div>
+        </div>
+        <div class="stat-card">
+            <h4>YESTERDAY (KAL)</h4>
+            <div class="stat-row"><span>Verified:</span><b id="v-yest" style="color:var(--success)">0</b></div>
+            <div class="stat-row"><span>Calling:</span><b id="c-yest" style="color:var(--info)">0</b></div>
+        </div>
+    </div>
+
+    <div class="search-panel">
+        <select id="listSelect" onchange="syncData()"></select>
+        <select id="tradeSelect" onchange="calculateStats();"></select>
+        <input type="text" id="searchInput" placeholder="Search (Min 4 chars)...">
+        <button class="btn-search" onclick="triggerSearch()"><i class="fas fa-search"></i> SEARCH DATA</button>
+    </div>
+
+    <div id="resultsArea"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let master = [], filtered = [], enrolledApps = new Set();
+
+const getDay = (off = 0) => {
+    const d = new Date(); d.setDate(d.getDate() - off);
+    return d.toLocaleDateString('en-GB');
+};
+
+const formatDOB = (s) => {
+    if(!s) return '---';
+    const d = new Date(s);
+    return isNaN(d) ? s : d.toLocaleDateString('en-GB');
+};
+
+function copyDOBFormatted(dateStr) {
+    if(!dateStr) return;
+    const d = new Date(dateStr);
+    if(isNaN(d)) return;
+    const formatted = d.getDate().toString().padStart(2, '0') + (d.getMonth() + 1).toString().padStart(2, '0') + d.getFullYear();
+    navigator.clipboard.writeText(formatted);
+    Swal.fire({ title: `DOB Copied: ${formatted}`, icon: 'success', toast: true, position: 'top', showConfirmButton: false, timer: 1500 });
+}
+
+function quickCopy(text, label) {
+    navigator.clipboard.writeText(text);
+    Swal.fire({ title: `${label} Copied!`, icon: 'success', toast: true, position: 'top', showConfirmButton: false, timer: 1000 });
+}
+
+window.onload = async () => {
+    // Show current user in header
+    if(activeUser) document.getElementById('currentUserLabel').innerText = activeUser.name;
+
+    const metaS = await db.ref('OverallListsMetadata').once('value');
+    const enrollS = await db.ref('BatchEnrollments').once('value');
+    enrollS.forEach(b => { Object.keys(b.val()).forEach(app => enrolledApps.add(String(app).toUpperCase())); });
+
+    let h = '<option value="">-- Choose Master List --</option>';
+    metaS.forEach(c => { h += `<option value="${c.key}">${c.val().listName}</option>`; });
+    document.getElementById('listSelect').innerHTML = h;
+};
+
+async function syncData() {
+    const lid = document.getElementById('listSelect').value;
+    if(!lid) return;
+    Swal.fire({ title: 'Syncing...', didOpen: () => Swal.showLoading() });
+
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        let h = '<option value="">-- Select Training --</option>';
+        s.forEach(c => { h += `<option value="${c.val().tradeName}">${c.val().trainingName}</option>`; });
+        document.getElementById('tradeSelect').innerHTML = h;
+    });
+
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    master = [];
+    snap.forEach(c => { master.push({...c.val(), dbKey: c.key}); });
+    calculateStats();
+    Swal.close();
+}
+
+function calculateStats() {
+    const trade = document.getElementById('tradeSelect').value;
+    const tDate = getDay(0), yDate = getDay(1);
+    let s = { vt: 0, ct: 0, vy: 0, cy: 0 };
+
+    master.forEach(d => {
+        if(trade && d.tradeName !== trade) return;
+        const vDate = d.verifiedDate || "";
+        const cTime = d.lastCallTime || "";
+        if(d.isVerified && vDate.includes(tDate)) s.vt++;
+        if(d.isVerified && vDate.includes(yDate)) s.vy++;
+        if(cTime.includes(tDate)) s.ct++;
+        if(cTime.includes(yDate)) s.cy++;
+    });
+
+    document.getElementById('v-today').innerText = s.vt;
+    document.getElementById('c-today').innerText = s.ct;
+    document.getElementById('v-yest').innerText = s.vy;
+    document.getElementById('c-yest').innerText = s.cy;
+}
+
+function triggerSearch() {
+    const trade = document.getElementById('tradeSelect').value;
+    const q = document.getElementById('searchInput').value.trim().toUpperCase();
+    if(!trade) return Swal.fire('Error', 'Trade select karein.', 'warning');
+    if(q.length < 4) return Swal.fire('Info', 'Minimum 4 akshar likhein.', 'info');
+    filtered = master.filter(d => d.tradeName === trade && JSON.stringify(d).toUpperCase().includes(q));
+    render();
+}
+
+function render() {
+    let h = '';
+    filtered.forEach(d => {
+        const isV = d.isVerified, isA = d.isAbsent || d.status === "ABSENT";
+        const isB = enrolledApps.has(String(d.applicationNumber).toUpperCase());
+        const hasCall = d.lastCallStatus && d.lastCallStatus !== "Not Contacted Yet";
+        
+        let cardStyle = "";
+        if(isB) cardStyle = "card-batch";
+        else if(isV) cardStyle = "card-verified";
+        else if(isA) cardStyle = "card-absent";
+        else if(hasCall) cardStyle = "card-calling";
+
+        h += `
+        <div class="card ${cardStyle}">
+            <div class="copyable" onclick="quickCopy('${d.applicationNumber}', 'App No')"><i class="fas fa-copy"></i> APP: ${d.applicationNumber}</div>
+            
+            <h3 style="margin:10px 0 2px;">${d.applicantName}</h3>
+            <div style="font-size: 11px; color: #64748b; font-weight: 700; margin-bottom: 10px;">
+                <i class="fas fa-user-friends"></i> S/O: ${d.fatherName || '---'}
+            </div>
+            
+            <div style="margin-top:5px;">
+                <div class="copyable" onclick="quickCopy('${d.mobile}', 'Mobile')"><i class="fas fa-phone"></i> ${d.mobile || '---'}</div>
+                <div class="copyable" onclick="copyDOBFormatted('${d.dob}')"><i class="fas fa-calendar"></i> ${formatDOB(d.dob)}</div>
+                <div class="copyable" onclick="quickCopy('${d.verifiedAadhar || d.aadhar || ''}', 'Aadhar')"><i class="fas fa-id-card"></i> AADHAR: ${d.verifiedAadhar || d.aadhar || 'Pending'}</div>
+            </div>
+
+            <div class="log-box">
+                <b>LAST CALL:</b> ${d.lastCallStatus || 'No Record Found'}<br>
+                <small>${d.lastAgent || d.lastCaller || '--'} | ${d.lastCallTime || '--'}</small>
+            </div>
+
+            ${isV ? `<div style="font-size:10px; color:var(--success); margin-top:8px; font-weight:800;">VERIFIED BY: ${d.verifiedBy} [${d.verifiedDate}]</div>` : ''}
+
+            ${isB ? 
+                `<button class="btn-verify" style="background:#0284c7" onclick="verifyNow('${d.dbKey}', '${d.applicantName}')">RE-VERIFY AADHAR (IN BATCH)</button>` 
+                : 
+                `<button class="btn-verify" ${isA || isV ? 'disabled' : (hasCall ? '' : 'disabled')} onclick="verifyNow('${d.dbKey}', '${d.applicantName}')">
+                    ${isV ? 'VERIFIED' : (isA ? 'ABSENT - BLOCKED' : (hasCall ? 'VERIFY NOW' : 'CALL PENDING'))}
+                </button>`
+            }
+            
+            ${isV ? `<button class="btn-rollback" onclick="rollbackNow('${d.dbKey}')"><i class="fas fa-undo"></i> ROLLBACK STATUS</button>` : ''}
+        </div>`;
+    });
+    document.getElementById('resultsArea').innerHTML = h || '<p style="text-align:center;">No match.</p>';
+}
+
+async function verifyNow(key, name) {
+    const record = master.find(x => x.dbKey === key);
+    const existingAadhar = record ? (record.verifiedAadhar || record.aadhar || '') : '';
+
+    const { value: aadhar } = await Swal.fire({
+        title: 'Verify Aadhar',
+        html: `Candidate: <b>${name}</b><br><small>Verified By: ${activeUser.name}</small>`,
+        input: 'text',
+        inputValue: existingAadhar,
+        inputAttributes: { maxlength: 12 },
+        showCancelButton: true,
+        inputValidator: (v) => (!v || v.length !== 12 || isNaN(v)) && '12-digit Aadhar enter karein!'
+    });
+
+    if(aadhar) {
+        const lid = document.getElementById('listSelect').value;
+        const vDate = new Date().toLocaleString('en-IN');
+        
+        const up = { 
+            isVerified: true, 
+            verifiedAadhar: aadhar, 
+            verifiedBy: activeUser.name, 
+            verifiedDate: vDate 
+        };
+        
+        await db.ref(`FullDataEntries/${lid}/${key}`).update(up);
+        if(record) Object.assign(record, up);
+        calculateStats(); 
+        render();
+        
+        Swal.fire({
+            title: 'Verified Successfully!',
+            icon: 'success',
+            html: `
+                <div style="text-align:left; background:#f0fdf4; padding:15px; border-radius:12px; border:1px solid #bcf0da; font-size:13px; color:#166534;">
+                    <p><b>Name:</b> ${name}</p>
+                    <p><b>App No:</b> ${record.applicationNumber}</p>
+                    <p><b>Aadhar:</b> ${aadhar}</p>
+                    <hr style="border:0; border-top:1px solid #bcf0da; margin:10px 0;">
+                    <p><b>Agent:</b> ${activeUser.name}</p>
+                    <p><b>Time:</b> ${vDate}</p>
+                </div>
+            `,
+            confirmButtonColor: '#059669'
+        });
+    }
+}
+
+async function rollbackNow(key) {
+    const { value: pin } = await Swal.fire({ title: 'Authorization', text: 'Enter PIN to Rollback', input: 'password', showCancelButton: true });
+    if(pin === String(activeUser.pin)) {
+        const lid = document.getElementById('listSelect').value;
+        await db.ref(`FullDataEntries/${lid}/${key}`).update({ isVerified: false, verifiedAadhar: null, verifiedBy: null, verifiedDate: null });
+        const obj = master.find(x => x.dbKey === key); if(obj) { obj.isVerified = false; obj.verifiedAadhar = null; }
+        calculateStats(); render();
+        Swal.fire('Rolled Back', 'Status reset ho gaya.', 'success');
+    } else if(pin) { Swal.fire('Error', 'Invalid PIN', 'error'); }
+}
+</script>
+</body>
+</html>

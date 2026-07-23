@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIS Control Center | Sync Pro</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --primary: #dc2626; --success: #059669; --warning: #f59e0b; --bg: #f1f5f9; --text: #0f172a; --white: #ffffff; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: var(--text); }
+        
+        .navbar { background: var(--white); padding: 15px 25px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 1000; }
+        .container { max-width: 1200px; margin: 25px auto; padding: 0 20px; display: grid; grid-template-columns: 380px 1fr; gap: 25px; }
+        
+        @media (max-width: 850px) { .container { grid-template-columns: 1fr; } }
+
+        .card { background: var(--white); border-radius: 16px; padding: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card-title { font-weight: 800; color: var(--primary); margin-bottom: 15px; display: flex; align-items: center; gap: 10px; font-size: 14px; text-transform: uppercase; }
+
+        /* Form Styling */
+        label { font-size: 11px; font-weight: 700; color: #64748b; display: block; margin-bottom: 6px; }
+        input { width: 100%; padding: 10px; border: 1.5px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; box-sizing: border-box; font-family: inherit; }
+        .total-box { background: #fff1f2; padding: 15px; border-radius: 12px; border-left: 5px solid var(--primary); margin: 10px 0; }
+        .btn-send { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 10px; font-weight: 800; cursor: pointer; transition: 0.3s; }
+
+        /* Table Styling */
+        .table-wrapper { overflow-x: auto; background: white; border-radius: 12px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; background: #f8fafc; font-size: 11px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+
+        /* Status Badges */
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; }
+        .status-awaiting { background: #fef3c7; color: #92400e; } /* Sent by MIS */
+        .status-done { background: #dbeafe; color: #1e40af; }     /* Paid by Manager */
+        .status-paid { background: #dcfce7; color: #166534; }     /* Approved by MIS */
+
+        .btn-approve { background: var(--success); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <div style="font-weight: 800; font-size: 18px;"><i class="fas fa-shield-halved"></i> MIS LEAD PORTAL</div>
+    <div id="userName" style="font-weight: 700; color: var(--primary); font-size: 14px;">Loading...</div>
+</div>
+
+<div class="container">
+    <aside>
+        <div class="card">
+            <div class="card-title"><i class="fas fa-file-invoice-dollar"></i> Generate Monthly Bill</div>
+            
+            <label>Bill Month/Description</label>
+            <input type="text" id="billTitle" placeholder="e.g., February 2026 Charges">
+
+            <label>Cloud Storage Charges (₹)</label>
+            <input type="number" id="chargeStorage" class="calc" placeholder="0" oninput="calculateTotal()">
+
+            <label>Realtime Database Charges (₹)</label>
+            <input type="number" id="chargeDB" class="calc" placeholder="0" oninput="calculateTotal()">
+
+            <label>Other Firebase Charges (₹)</label>
+            <input type="number" id="chargeOther" class="calc" placeholder="0" oninput="calculateTotal()">
+
+            <div class="total-box">
+                <label style="color: var(--primary); margin:0;">Grand Total (Inc. 30% Charges)</label>
+                <div id="displayTotal" style="font-size: 24px; font-weight: 900;">₹ 0.00</div>
+            </div>
+
+            <button class="btn-send" onclick="publishBill()">FORWARD FOR PAYMENT</button>
+        </div>
+
+        <div class="card" style="text-align: center;">
+            <div class="card-title" style="justify-content: center;">Monthly Summary</div>
+            <h2 id="totalReceived" style="margin: 5px 0; color: var(--success);">₹ 0</h2>
+            <p style="font-size: 11px; color: #64748b; font-weight: 600;">TOTAL RECEIVED THIS MONTH</p>
+        </div>
+    </aside>
+
+    <main>
+        <div class="card">
+            <div class="card-title"><i class="fas fa-list-check"></i> Billing & Approval Logs</div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Bill Details</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// Firebase Config
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser')) || {name: "MIS Lead"};
+document.getElementById('userName').innerText = currentUser.name;
+
+let finalAmount = 0;
+
+// Calculation Logic
+function calculateTotal() {
+    const s = parseFloat(document.getElementById('chargeStorage').value) || 0;
+    const d = parseFloat(document.getElementById('chargeDB').value) || 0;
+    const o = parseFloat(document.getElementById('chargeOther').value) || 0;
+    
+    const subtotal = s + d + o;
+    finalAmount = (subtotal * 1.30).toFixed(2);
+    document.getElementById('displayTotal').innerText = `₹ ${finalAmount}`;
+}
+
+// 1. Forward Bill to Manager
+async function publishBill() {
+    const title = document.getElementById('billTitle').value.trim();
+    if(!title || finalAmount <= 0) return Swal.fire('Error', 'Please enter valid charges.', 'error');
+
+    const billId = "BILL-" + Date.now();
+    const data = {
+        billId: billId,
+        title: title,
+        storage: document.getElementById('chargeStorage').value || 0,
+        db: document.getElementById('chargeDB').value || 0,
+        other: document.getElementById('chargeOther').value || 0,
+        amount: finalAmount,
+        status: 'Awaiting Payment', // Manager will see this
+        createdAt: new Date().toLocaleString('en-GB'),
+        createdBy: currentUser.name
+    };
+
+    try {
+        await db.ref('Billing/History/' + billId).set(data);
+        await db.ref('Billing/currentUsage').set(finalAmount); // Update manager's dashboard
+        Swal.fire('Published!', 'Bill Manager पोर्टल पर भेज दिया गया है.', 'success');
+        resetForm();
+    } catch(e) { alert(e.message); }
+}
+
+function resetForm() {
+    document.querySelectorAll('.calc').forEach(i => i.value = '');
+    document.getElementById('billTitle').value = '';
+    calculateTotal();
+}
+
+// 2. Load Logs & Approval System
+function syncLogs() {
+    db.ref('Billing/History').on('value', snap => {
+        let html = '';
+        let totalCash = 0;
+
+        if(!snap.exists()) {
+            document.getElementById('logTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center">No records found.</td></tr>';
+            return;
+        }
+
+        snap.forEach(child => {
+            const b = child.val();
+            let statusClass = '';
+            let actionHtml = '';
+
+            // Status Logic
+            if(b.status === 'Awaiting Payment') {
+                statusClass = 'status-awaiting';
+                actionHtml = `<i class="fas fa-clock" title="Waiting for Manager"></i>`;
+            } else if(b.status === 'Payment Done') {
+                statusClass = 'status-done';
+                actionHtml = `<button class="btn-approve" onclick="approvePayment('${b.billId}')">APPROVE</button>`;
+            } else {
+                statusClass = 'status-paid';
+                actionHtml = `<i class="fas fa-check-double" style="color:var(--success)"></i> Received`;
+                totalCash += parseFloat(b.amount);
+            }
+
+            html = `
+                <tr>
+                    <td>${b.createdAt.split(',')[0]}</td>
+                    <td><b>${b.title}</b><br><small style="color:#64748b">ID: ${b.billId}</small></td>
+                    <td style="font-weight:800">₹${b.amount}</td>
+                    <td><span class="badge ${statusClass}">${b.status}</span></td>
+                    <td>${actionHtml}</td>
+                </tr>
+            ` + html;
+        });
+
+        document.getElementById('logTableBody').innerHTML = html;
+        document.getElementById('totalReceived').innerText = `₹ ${totalCash.toFixed(2)}`;
+    });
+}
+
+// 3. Final Approval (Received Entry)
+async function approvePayment(id) {
+    const res = await Swal.fire({
+        title: 'Confirm Receipt?',
+        text: 'क्या आपको पेमेंट बैंक/UPI में प्राप्त हो गया है?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Approved'
+    });
+
+    if(res.isConfirmed) {
+        await db.ref('Billing/History/' + id).update({
+            status: 'Paid',
+            approvedAt: new Date().toLocaleString('en-GB'),
+            approvedBy: currentUser.name
+        });
+        // Clear current usage for manager after approval
+        db.ref('Billing/currentUsage').set(0);
+        Swal.fire('Success', 'Payment record confirm ho gaya hai.', 'success');
+    }
+}
+
+window.onload = syncLogs;
+</script>
+</body>
+</html>

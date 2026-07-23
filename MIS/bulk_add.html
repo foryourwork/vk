@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Lead Strict Control</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --red: #be123c; --red-bg: #fff1f2; --success: #059669; --gradient: linear-gradient(135deg, #be123c, #fb7185); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--red-bg); margin: 0; color: #1e293b; padding-bottom: 100px; overflow-x: hidden; }
+        
+        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 4px; background: #ffe4e6; z-index: 10001; display: none; }
+        #loader-bar { height: 100%; background: var(--red); width: 0%; transition: 0.3s; }
+
+        .header { background: white; padding: 12px 15px; border-bottom: 3px solid var(--red); position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; }
+        .container { width: 100%; max-width: 1500px; margin: 0 auto; padding: 12px; }
+        
+        .action-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
+        .btn { padding: 10px 16px; border-radius: 12px; font-weight: 700; cursor: pointer; border: none; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; color: white; transition: 0.3s; }
+        .btn-red { background: var(--red); }
+        .btn-dark { background: #1e293b; }
+        .btn-success { background: var(--success); }
+
+        .card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 20px; border: 1px solid #ffe4e6; box-shadow: 0 4px 15px rgba(190, 18, 60, 0.05); }
+        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+
+        label { display: block; font-size: 10px; font-weight: 800; color: var(--red); margin-bottom: 6px; text-transform: uppercase; }
+        select, input { width: 100%; padding: 12px; border-radius: 12px; border: 2px solid #fda4af; font-weight: 600; font-size: 13px; outline: none; background: #fffcfc; }
+
+        .table-wrapper { overflow-x: auto; background: white; border-radius: 15px; }
+        table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        th { background: #fff1f2; color: var(--red); padding: 15px; font-size: 11px; text-transform: uppercase; text-align: left; }
+        td { padding: 15px; border-bottom: 1px solid #ffe4e6; font-size: 13px; }
+
+        .bulk-bar { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 15px 30px; border-radius: 50px; display: none; align-items: center; gap: 15px; z-index: 2000; box-shadow: 0 10px 40px rgba(0,0,0,0.4); border: 2px solid var(--red); }
+
+        .special-row { background: #fff9c4 !important; }
+        .absent-row { opacity: 0.6; background: #fef2f2; }
+
+        @media (max-width: 768px) {
+            table, thead, tbody, th, td, tr { display: block; }
+            thead { display: none; }
+            tr { margin-bottom: 15px; border: 1.5px solid #ffe4e6; border-radius: 15px; padding: 10px; background: white; }
+            td { text-align: right; position: relative; padding-left: 50%; border: none; }
+            td:before { content: attr(data-label); position: absolute; left: 10px; font-weight: 800; color: var(--red); font-size: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="loader"><div id="loader-bar"></div></div>
+
+<div class="header">
+    <div style="display:flex; align-items:center;">
+        <i class="fas fa-shield-check" style="color:var(--red); font-size:24px;"></i>
+        <div style="margin-left: 12px;">
+            <h2 style="font-size:10px; color:var(--red); font-weight:800; margin:0;">SYNC PRO | LEAD STRICT PANEL</h2>
+            <div id="uName" style="font-size:14px; font-weight:700;">Admin</div>
+        </div>
+    </div>
+    <div id="clock" style="font-size:11px; font-weight:800; color: var(--red);"></div>
+</div>
+
+<div class="container animate__animated animate__fadeIn">
+    <div class="action-btns">
+        <button class="btn btn-dark" onclick="exportFullMasterReport()"><i class="fas fa-file-export"></i> Master Export (All Batches)</button>
+        <button class="btn btn-red" onclick="exportAbsentList()"><i class="fas fa-file-excel"></i> Export Absent</button>
+        <button class="btn btn-success" onclick="document.getElementById('excelFile').click()"><i class="fas fa-upload"></i> Bulk Assign (Limit Check)</button>
+        <input type="file" id="excelFile" hidden onchange="handleBulkImport(event)">
+    </div>
+
+    <div class="card">
+        <div class="filter-grid">
+            <div><label>Master List</label><select id="listSelect" onchange="syncTrainings()"></select></div>
+            <div><label>Training (Active/Comp)</label><select id="trainingSelect" onchange="syncBatches()"></select></div>
+            <div><label>Aadhar Filter</label>
+                <select id="aadharFilter" onchange="loadAvailableCandidates()">
+                    <option value="all">All Status</option>
+                    <option value="verified">Verified Only</option>
+                    <option value="pending">Pending Only</option>
+                </select>
+            </div>
+            <div><label>Target Batch (In Progress)</label><select id="batchSelect" onchange="loadAvailableCandidates()"></select></div>
+        </div>
+        <div style="margin-top: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="includeAbsent" onchange="loadAvailableCandidates()" style="width:18px; height:18px;">
+                <label for="includeAbsent" style="margin:0; font-size:12px; color:var(--red); font-weight:700;">Include Absent (Read-Only)</label>
+            </div>
+            <input type="text" id="searchBox" placeholder="Quick Search Name/App..." oninput="loadAvailableCandidates()" style="max-width:300px;">
+        </div>
+    </div>
+
+    <div class="card" style="padding:0; overflow:hidden;">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:40px;"><input type="checkbox" onclick="selectAll(this.checked)"></th>
+                        <th>App Details</th>
+                        <th>Candidate Info</th>
+                        <th>Aadhar Status</th>
+                        <th>Call Logs</th>
+                        <th>Final Status</th>
+                    </tr>
+                </thead>
+                <tbody id="candidateTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="bulkBar" class="bulk-bar animate__animated animate__slideInUp">
+    <span id="selText" style="font-weight:800;">0 Selected</span>
+    <div style="display:flex; gap:10px;">
+        <button class="btn btn-success" onclick="bulkEnroll()"><i class="fas fa-check-circle"></i> ENROLL VERIFIED</button>
+        <button class="btn btn-red" onclick="bulkMarkAbsent()"><i class="fas fa-user-times"></i> MARK ABSENT</button>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allBatches = {}, allEnrolled = {}, specialApps = new Set(), currentList = [];
+
+function showLoad(show) {
+    const l = document.getElementById('loader'), lb = document.getElementById('loader-bar');
+    if(show) { l.style.display = 'block'; lb.style.width = '40%'; }
+    else { lb.style.width = '100%'; setTimeout(() => { l.style.display = 'none'; lb.style.width = '0%'; }, 300); }
+}
+
+window.onload = async () => {
+    const sessionUser = sessionStorage.getItem('activeUser');
+    if(!sessionUser) { location.href = 'index.html'; return; }
+    document.getElementById('uName').innerText = JSON.parse(sessionUser).name;
+    setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-IN'); }, 1000);
+
+    const specSnap = await db.ref('SpecialCandidatesList').once('value');
+    specSnap.forEach(c => { if(c.val().appNo) specialApps.add(String(c.val().appNo).toUpperCase()); });
+
+    db.ref('OverallListsMetadata').on('value', s => {
+        let h = '<option value="">-- Master List --</option>';
+        s.forEach(c => { if(c.val().status !== 'Hide It') h += `<option value="${c.key}">${c.val().listName}</option>`; });
+        document.getElementById('listSelect').innerHTML = h;
+    });
+
+    db.ref('Batches').on('value', s => allBatches = s.val() || {});
+    db.ref('BatchEnrollments').on('value', s => { allEnrolled = s.val() || {}; loadAvailableCandidates(); });
+};
+
+function syncTrainings() {
+    const lid = document.getElementById('listSelect').value;
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        let h = '<option value="">-- Choose Training --</option>';
+        s.forEach(c => {
+            const status = c.val().status || "In Progress";
+            // Filter: Only In Progress or Completed
+            if(status === "In Progress" || status === "Completed") {
+                h += `<option value="${c.key}" data-trade="${c.val().tradeName}">${c.val().trainingName}</option>`;
+            }
+        });
+        document.getElementById('trainingSelect').innerHTML = h;
+    });
+}
+
+function syncBatches() {
+    const trade = document.getElementById('trainingSelect').options[document.getElementById('trainingSelect').selectedIndex]?.getAttribute('data-trade');
+    let h = '<option value="">-- Target Batch --</option>';
+    for(let id in allBatches) {
+        if(allBatches[id].trainingName === trade && allBatches[id].status === "In Progress") {
+            const count = allEnrolled[id] ? Object.keys(allEnrolled[id]).length : 0;
+            h += `<option value="${id}">${allBatches[id].batchName} (${count}/${allBatches[id].limit || 25})</option>`;
+        }
+    }
+    document.getElementById('batchSelect').innerHTML = h;
+    loadAvailableCandidates();
+}
+
+async function loadAvailableCandidates() {
+    const lid = document.getElementById('listSelect').value;
+    const ts = document.getElementById('trainingSelect');
+    if(!lid || !ts.value) return;
+    
+    showLoad(true);
+    const trade = ts.options[ts.selectedIndex].getAttribute('data-trade');
+    const search = document.getElementById('searchBox').value.toLowerCase();
+    const af = document.getElementById('aadharFilter').value;
+    const incAbsent = document.getElementById('includeAbsent').checked;
+    
+    let enrolledGlobalMap = new Set();
+    for(let b in allEnrolled) Object.keys(allEnrolled[b]).forEach(app => enrolledGlobalMap.add(String(app).toUpperCase()));
+
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    currentList = [];
+    let h = '';
+
+    snap.forEach(child => {
+        const d = child.val();
+        const appNo = String(d.applicationNumber).toUpperCase();
+        if(d.tradeName !== trade || enrolledGlobalMap.has(appNo)) return;
+
+        const isAbsent = d.isAbsent || d.status === "ABSENT";
+        if(isAbsent && !incAbsent) return;
+
+        const isVerified = d.isVerified && d.verifiedAadhar;
+        const isSpecial = specialApps.has(appNo);
+
+        if(af === "verified" && !isVerified) return;
+        if(af === "pending" && isVerified) return;
+
+        currentList.push({...d, isSpecial, appNo, dbKey: child.key, isAbsent, isVerified});
+        if(search && !d.applicantName.toLowerCase().includes(search) && !appNo.includes(search)) return;
+
+        // Strict Logic: Unverified and Absent candidates cannot be selected
+        let checkField = (isVerified && !isAbsent) ? 
+            `<input type="checkbox" class="c-check" value="${appNo}" data-verified="${isVerified}" data-special="${isSpecial}" data-name="${d.applicantName}" data-aadhar="${d.verifiedAadhar}" onchange="updateBar()">` : 
+            `<i class="fas fa-lock" title="Verify Aadhar to Unlock" style="color:#cbd5e1"></i>`;
+
+        h += `<tr class="${isSpecial ? 'special-row' : ''} ${isAbsent ? 'absent-row' : ''}">
+            <td data-label="Select">${checkField}</td>
+            <td data-label="App Details"><b>${appNo}</b><br><small>SR: ${d.overallSrNo || '-'}</small></td>
+            <td data-label="Candidate"><b>${d.applicantName}</b><br><small>F: ${d.fatherName || '-'}</small></td>
+            <td data-label="Aadhar">${isVerified ? `<b style="color:var(--success)">${d.verifiedAadhar}</b>` : `<button class="btn btn-red" style="padding:4px 8px; font-size:10px;" onclick="verifyAadhar('${lid}','${child.key}','${d.applicantName}')">Verify & Unlock</button>`}</td>
+            <td data-label="Calls"><small>C1: ${d.call1Status || 'No'}</small> | <small>C2: ${d.call2Status || 'No'}</small></td>
+            <td data-label="Status">${isAbsent ? '<b style="color:var(--red)">ABSENT</b>' : (isVerified ? '<b style="color:var(--success)">READY</b>' : 'PENDING')}</td>
+        </tr>`;
+    });
+    document.getElementById('candidateTable').innerHTML = h || '<tr><td colspan="6" style="text-align:center; padding:40px;">No candidates matching filters.</td></tr>';
+    showLoad(false);
+}
+
+// BULK ACTIONS
+async function bulkEnroll() {
+    const bid = document.getElementById('batchSelect').value;
+    const selected = document.querySelectorAll('.c-check:checked');
+    if(!bid) return Swal.fire('Batch Selection', 'Target batch select karein!', 'warning');
+
+    const limit = allBatches[bid].limit || 25;
+    const curCount = allEnrolled[bid] ? Object.keys(allEnrolled[bid]).length : 0;
+    if(curCount + selected.length > limit) return Swal.fire('Over Limit', `Batch full! Baki seats: ${limit - curCount}`, 'error');
+
+    const res = await Swal.fire({ title: 'Assign Verified Students?', icon: 'question', showCancelButton: true });
+    if(res.isConfirmed) {
+        showLoad(true);
+        for(let c of selected) {
+            await db.ref(`BatchEnrollments/${bid}/${c.value}`).set({
+                appNo: c.value, name: c.dataset.name, aadhar: c.dataset.aadhar, enrolledAt: new Date().toLocaleString()
+            });
+        }
+        Swal.fire('Success', 'Candidates assigned!', 'success');
+        loadAvailableCandidates(); updateBar();
+    }
+}
+
+async function bulkMarkAbsent() {
+    const selected = document.querySelectorAll('.c-check:checked');
+    const lid = document.getElementById('listSelect').value;
+    let failCount = 0, successCount = 0;
+
+    const res = await Swal.fire({ title: 'Mark as Absent?', text: 'Verified ya Special candidates skipped ho jayenge.', icon: 'warning', showCancelButton: true });
+    if(res.isConfirmed) {
+        showLoad(true);
+        for(let c of selected) {
+            if(c.dataset.verified === "true" || c.dataset.special === "true") { failCount++; continue; }
+            const cand = currentList.find(x => x.appNo === c.value);
+            await db.ref(`FullDataEntries/${lid}/${cand.dbKey}`).update({ isAbsent: true, status: "ABSENT" });
+            successCount++;
+        }
+        Swal.fire('Done', `${successCount} marked absent. ${failCount} skipped.`, 'info');
+        loadAvailableCandidates(); updateBar();
+    }
+}
+
+// EXPORTS
+function exportFullMasterReport() {
+    let report = [];
+    for(let bid in allEnrolled) {
+        const batch = allBatches[bid];
+        Object.values(allEnrolled[bid]).forEach(item => {
+            report.push({ "Batch": batch.batchName, "Trade": batch.trainingName, "Status": batch.status, "App No": item.appNo, "Name": item.name, "Aadhar": item.aadhar, "Date": item.enrolledAt });
+        });
+    }
+    const ws = XLSX.utils.json_to_sheet(report);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "MasterEnrollment");
+    XLSX.writeFile(wb, "SyncPro_Master_Report.xlsx");
+}
+
+function exportAbsentList() {
+    const absent = currentList.filter(d => (d.isAbsent || !d.isVerified) && !d.isSpecial);
+    const ws = XLSX.utils.json_to_sheet(absent.map(d => ({ "App No": d.appNo, "Name": d.applicantName, "Father": d.fatherName, "Mobile": d.mobile })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Absent");
+    XLSX.writeFile(wb, "Absent_Report.xlsx");
+}
+
+async function handleBulkImport(e) {
+    const file = e.target.files[0], lid = document.getElementById('listSelect').value, bid = document.getElementById('batchSelect').value;
+    if(!lid || !bid) return Swal.fire('Error', 'Master List और Batch सिलेक्ट करें!', 'error');
+
+    const limit = allBatches[bid].limit || 25;
+    const curCount = allEnrolled[bid] ? Object.keys(allEnrolled[bid]).length : 0;
+    let availableSeats = limit - curCount;
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+        const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(ev.target.result), {type: 'array'}).Sheets["Sample"]);
+        let count = 0;
+        showLoad(true);
+        for(let row of json) {
+            if(availableSeats <= 0) break;
+            const app = String(row['Application Number']).toUpperCase().trim();
+            const aadhar = String(row['Aadhar Number']).trim();
+            const cand = currentList.find(c => c.appNo === app);
+            if(cand && aadhar.length === 12 && !cand.isAbsent) {
+                await db.ref(`FullDataEntries/${lid}/${cand.dbKey}`).update({ isVerified: true, verifiedAadhar: aadhar, isAbsent: false, status: "VERIFIED" });
+                await db.ref(`BatchEnrollments/${bid}/${app}`).set({ appNo: app, aadhar, name: cand.applicantName, enrolledAt: new Date().toLocaleString() });
+                count++; availableSeats--;
+            }
+        }
+        Swal.fire('Complete', `${count} students added.`, 'success');
+        loadAvailableCandidates();
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+async function verifyAadhar(lid, id, name) {
+    const { value: aadhar } = await Swal.fire({ title: 'Verify & Unlock', input: 'text', inputLabel: `${name} का 12 डिजिट आधार`, inputAttributes: {maxlength:12} });
+    if (aadhar?.length === 12) {
+        showLoad(true);
+        // Logic: Removed Absent status upon verification
+        await db.ref(`FullDataEntries/${lid}/${id}`).update({ isVerified: true, verifiedAadhar: aadhar, isAbsent: false, status: "VERIFIED" });
+        loadAvailableCandidates();
+    }
+}
+
+function updateBar() {
+    const sel = document.querySelectorAll('.c-check:checked').length;
+    document.getElementById('bulkBar').style.display = sel > 0 ? 'flex' : 'none';
+    document.getElementById('selText').innerText = `${sel} Selected`;
+}
+
+function selectAll(status) {
+    document.querySelectorAll('.c-check').forEach(c => c.checked = status);
+    updateBar();
+}
+</script>
+</body>
+</html>

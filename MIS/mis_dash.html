@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Enterprise MIS Dashboard | VKETC</title>
+    
+    <script>
+        const user = JSON.parse(sessionStorage.getItem('activeUser'));
+        if (!user) { window.location.href = "../login.html"; }
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { 
+            --primary: #4f46e5; 
+            --bg: #f8fafc; 
+            --card-bg: #ffffff;
+            --text-dark: #0f172a; 
+            --radius: 20px;
+        }
+
+        /* Continuous Icon Float Animation */
+        @keyframes iconFloat {
+            0%, 100% { transform: translateY(0) rotate(0); }
+            50% { transform: translateY(-6px) rotate(2deg); }
+        }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background: var(--bg); 
+            margin: 0; padding-bottom: 100px;
+            background-attachment: fixed;
+            background-image: radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.05) 0px, transparent 50%), 
+                              radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.05) 0px, transparent 50%);
+        }
+
+        /* Navbar Glassmorphism */
+        .navbar { 
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            padding: 12px 20px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+            position: sticky; top: 0; z-index: 1000;
+        }
+
+        .avatar { 
+            width: 42px; height: 42px; 
+            background: linear-gradient(135deg, var(--primary), #8b5cf6); 
+            color: white; border-radius: 12px; 
+            display: flex; align-items: center; justify-content: center; 
+            font-weight: 800; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+        }
+
+        .container { max-width: 1300px; margin: 0 auto; padding: 20px; }
+
+        /* Stats Cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 25px; }
+        .stat-card { 
+            background: white; padding: 15px; border-radius: 20px; 
+            border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+        .stat-card .count { font-size: 24px; font-weight: 800; color: var(--text-dark); }
+        .stat-card small { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+
+        /* Section Styling */
+        .section-box { 
+            background: white; border-radius: 24px; padding: 20px; 
+            margin-bottom: 25px; border: 1px solid #e2e8f0;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.02);
+        }
+        .section-title { 
+            font-size: 13px; font-weight: 800; color: #64748b; 
+            text-transform: uppercase; letter-spacing: 1px;
+            margin-bottom: 18px; display: flex; align-items: center; gap: 10px;
+        }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: #f1f5f9; }
+
+        /* Services Grid */
+        .services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+        
+        .service-card { 
+            background: #ffffff; border-radius: 18px; padding: 18px 10px;
+            text-decoration: none; display: flex; flex-direction: column; 
+            align-items: center; gap: 10px; border: 1px solid #f1f5f9; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .service-card i { 
+            font-size: 26px; 
+            animation: iconFloat 3s ease-in-out infinite;
+        }
+
+        .service-card span { font-size: 11px; font-weight: 700; color: #334155; text-align: center; }
+
+        .service-card:hover { 
+            transform: translateY(-5px);
+            background: #f8fafc;
+            border-color: var(--primary);
+            box-shadow: 0 12px 20px -5px rgba(0,0,0,0.1);
+        }
+
+        /* Category Wise Icon Colors */
+        .cat-verify i { color: #2563eb; }
+        .cat-report i { color: #059669; }
+        .cat-ops i { color: #ea580c; }
+        .cat-bulk i { color: #7c3aed; }
+        .cat-special i { color: #db2777; }
+        .cat-att i { color: #0d9488; }
+        .cat-master i { color: #4f46e5; }
+
+        /* Logout */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: white; border-top: 1px solid #e2e8f0;
+            padding: 15px; display: flex; justify-content: center; z-index: 1000;
+        }
+        .logout-btn {
+            background: #0f172a; color: white; padding: 12px 40px; border-radius: 12px;
+            font-weight: 800; border: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .services-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="user-profile">
+            <div class="avatar" id="userInitial">A</div>
+            <div class="user-meta">
+                <b id="navUserName">User Name</b>
+                <div id="navUserRole" style="font-size: 9px; font-weight: 800; color: #64748b;">MIS LEAD</div>
+            </div>
+        </div>
+        <button onclick="switchRole()" style="background:#f1f5f9; border:none; padding:8px 12px; border-radius:10px; font-weight:800; cursor:pointer; font-size:10px; color:var(--primary);">
+            <i class="fas fa-sync"></i> SWITCH
+        </button>
+    </nav>
+
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <i class="fas fa-check-circle" style="color:#10b981; margin-bottom:5px;"></i><br>
+                <small>Verified Today</small>
+                <div class="count" id="vToday">0</div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-headset" style="color:#3b82f6; margin-bottom:5px;"></i><br>
+                <small>Total Calls</small>
+                <div class="count" id="cToday">0</div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-clock" style="color:#f59e0b; margin-bottom:5px;"></i><br>
+                <small>Yesterday</small>
+                <div class="count" id="cYesterday">0</div>
+            </div>
+        </div>
+
+        <div class="section-box cat-verify">
+            <div class="section-title">Candidates & Verification</div>
+            <div class="services-grid">
+                <a href="verification.html" class="service-card"><i class="fas fa-user-check"></i><span>Verification</span></a>
+                <a href="unverified.html" class="service-card"><i class="fas fa-user-minus"></i><span>Unverify Req</span></a>
+				<a href="special_advance.html" class="service-card"><i class="fas fa-bolt-lightning"></i><span>Special Advance
+			</span></a>
+                <a href="correction.html" class="service-card"><i class="fas fa-user-pen"></i><span>Correction</span></a>
+                <a href="adv.html" class="service-card"><i class="fas fa-address-card"></i><span>Profile Print</span></a>
+                <a href="doc_exp.html" class="service-card"><i class="fas fa-id-card-clip"></i><span>Candidate Details</span></a>
+            </div>
+        </div>
+
+        <div class="section-box cat-report">
+            <div class="section-title">Reports & Exports</div>
+            <div class="services-grid">
+                <a href="verified_report.html" class="service-card"><i class="fas fa-file-circle-check"></i><span>Verified List</span></a>
+                <a href="list_dash.html" class="service-card"><i class="fas fa-file-excel"></i><span>Download Excel</span></a>
+            </div>
+        </div>
+
+        <div class="section-box cat-ops">
+            <div class="section-title">Operations & Calling</div>
+            <div class="services-grid">
+                <a href="check_call.html" class="service-card"><i class="fas fa-phone-volume"></i><span>Call Status</span></a>
+                <a href="mis_urgent_calls_assigned.html" class="service-card"><i class="fas fa-fire-flame-curved"></i><span>Urgent Assign</span></a>
+                <a href="bulk_upload_leads.html" class="service-card"><i class="fas fa-fire-flame-curved"></i><span>Urgent Assign ITI</span></a>
+                <a href="mis_pending_confirmation.html" class="service-card"><i class="fas fa-hourglass-half"></i><span>Pending Confirm</span></a>
+                <a href="msg_template.html" class="service-card"><i class="fas fa-comment-sms"></i><span>MSG Template</span></a>
+                <a href="mis_urgent_calls_report.html" class="service-card"><i class="fas fa-clipboard-check"></i><span>Assign Report</span></a>
+            </div>
+        </div>
+
+        <div class="section-box cat-bulk">
+            <div class="section-title">Bulk Power Tools</div>
+            <div class="services-grid">
+                <a href="bulk_verification.html" class="service-card"><i class="fas fa-users-gear"></i><span>Bulk Verify</span></a>
+                <a href="bulk_shift_batches.html" class="service-card"><i class="fas fa-arrows-spin"></i><span>Bulk Shift</span></a>
+                <a href="bulk_tracker.php" class="service-card"><i class="fas fa-truck-fast"></i><span>Bulk Track</span></a>
+                <a href="VSSY/index.html" class="service-card"><i class="fas fa-earth-americas"></i><span>Track Status</span></a>
+                <a href="TRACKING/mis_lead_pipeline.html" class="service-card"><i class="fas fa-database"></i><span>SYNC Pipeline</span></a>
+            </div>
+        </div>
+
+        <div class="section-box cat-special">
+            <div class="section-title">Special Access</div>
+            <div class="services-grid">
+                <a href="special.html" class="service-card"><i class="fas fa-star"></i><span>Special Cand.</span></a>
+                <a href="special_candidates_bulk.html" class="service-card"><i class="fas fa-file-invoice"></i><span>Special Report</span></a>
+                
+                <a href="special_assignment_batches.html" class="service-card"><i class="fas fa-table-list"></i><span>Batch Report</span></a>
+            </div>
+        </div>
+
+        <div class="section-box cat-att">
+            <div class="section-title">Attendance Tracking</div>
+            <div class="services-grid">
+                <a href="attedance.html" class="service-card"><i class="fas fa-calendar-check"></i><span>Candidate Att.</span></a>
+                <a href="absent.php" class="service-card"><i class="fas fa-user-xmark"></i><span>Absent List</span></a>
+                <a href="EXAM_ATTANDANCE.HTML" class="service-card"><i class="fas fa-user-xmark"></i><span>EXAM report</span></a>
+            </div>
+        </div>
+		<div class="section-box cat-att">
+            <div class="section-title">Tools</div>
+            <div class="services-grid">
+                <a href="tools.html" class="service-card"><i class="fas fa-calendar-check"></i><span>MSME Tools</span></a>
+                <a href="form_management.html" class="service-card"><i class="fas fa-calendar-check"></i><span>Form Entry</span></a>
+                <a href="praman patra.html" class="service-card"><i class="fas fa-calendar-check"></i><span>Create Cetificate</span></a>
+                 </div>
+        </div>
+
+        <div class="section-box cat-master">
+            <div class="section-title">Training & Master Management</div>
+            <div class="services-grid">
+                <a href="Create_overall_list.html" class="service-card"><i class="fas fa-square-plus"></i><span>Create Overall</span></a>
+                <a href="veiw_overall_list.html" class="service-card"><i class="fas fa-eye"></i><span>View Overall</span></a>
+                <a href="create_traning.html" class="service-card"><i class="fas fa-graduation-cap"></i><span>Manage Training</span></a>
+                <a href="create_batches.html" class="service-card"><i class="fas fa-layer-group"></i><span>Create Batches</span></a>
+                <a href="bulk_add.html" class="service-card"><i class="fas fa-user-plus"></i><span>Assign Batch</span></a>
+                <a href="candidate_batcheswise.html" class="service-card"><i class="fas fa-users-rectangle"></i><span>Batch View</span></a>
+                <a href="UPICON_FORMATE.HTML" class="service-card"><i class="fas fa-file-csv"></i><span>UPICON Excel</span></a>
+                <a href="employee_managment.html" class="service-card"><i class="fas fa-user-gear"></i><span>Emp Manage</span></a>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="logout-btn" onclick="logout()">
+            <i class="fas fa-power-off"></i> LOGOUT SYSTEM
+        </button>
+    </div>
+
+    <script>
+        // Firebase initialization (Same as before)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+            authDomain: "dbform-db4c9.firebaseapp.com",
+            databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "dbform-db4c9",
+            storageBucket: "dbform-db4c9.firebasestorage.app",
+            messagingSenderId: "930632470946",
+            appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        document.getElementById('navUserName').innerText = user.name;
+        document.getElementById('userInitial').innerText = user.name.charAt(0);
+        document.getElementById('navUserRole').innerText = user.roles ? user.roles.join(' | ') : user.role;
+
+        // Stat Loading Logic (Same as yours)
+        function loadStats() {
+            const today = new Date().toLocaleDateString('en-GB');
+            const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('en-GB').replace(/\//g, '-');
+            const todayKey = today.replace(/\//g, '-');
+
+            db.ref('FullDataEntries').on('value', snap => {
+                let vCount = 0;
+                snap.forEach(l => l.forEach(c => {
+                    const d = c.val();
+                    if(d.isVerified && d.verifiedDate?.includes(today)) vCount++;
+                }));
+                document.getElementById('vToday').innerText = vCount;
+            });
+
+            db.ref('MyStats').on('value', snap => {
+                let tCall = 0, yCall = 0;
+                snap.forEach(agent => {
+                    tCall += (agent.child(todayKey).val() || 0);
+                    yCall += (agent.child(yesterday).val() || 0);
+                });
+                document.getElementById('cToday').innerText = tCall;
+                document.getElementById('cYesterday').innerText = yCall;
+            });
+        }
+
+        function switchRole() {
+            const roles = user.roles || [user.role];
+            if(roles.length <= 1) return Swal.fire('Note', 'No other roles assigned', 'info');
+            let buttons = roles.map(r => `<button onclick="goToRole('${r}')" style="width:100%; padding:12px; margin:5px 0; border:none; border-radius:10px; background:#f1f5f9; font-weight:700; cursor:pointer;">${r}</button>`).join('');
+            Swal.fire({ title: 'Switch Access', html: buttons, showConfirmButton: false, showCancelButton: true });
+        }
+
+        window.goToRole = (role) => {
+            const map = { "Verifier": "../VERIFIER/vr_dash.html", "Caller": "../CALLER/cl_dash.html", "Administrator": "../MANAGER/MANAGER.html", "MIS Lead": "mis_dash.html", "Doc Expert": "../document.html", "HR Specialist": "../manage.html" };
+            if(map[role]) window.location.href = map[role];
+        }
+// 1. Logout Function: Jo click karne par data delete karega
+function logout() {
+    // Session aur LocalStorage dono ko clear karein
+    sessionStorage.clear();
+    localStorage.removeItem('persistentUser');
+    
+    // Login page par bhej dein
+    window.location.href = '../login.html';
+}
+
+// 2. Cross-Tab Logout Listener: Jo dusre tabs ko monitor karega
+window.addEventListener('storage', (event) => {
+    // Agar kisi dusre tab se 'persistentUser' delete hota hai
+    if (event.key === 'persistentUser' && !event.newValue) {
+        // Toh is current tab ko bhi logout kar do
+        sessionStorage.clear();
+        window.location.href = '../login.html';
+    }
+});
+
+// 3. (Extra Security) Check if user is logged in
+// Agar koi bina login ke dashboard page access karne ki koshish kare
+window.onload = () => {
+    const activeUser = sessionStorage.getItem('activeUser') || localStorage.getItem('persistentUser');
+    if (!activeUser) {
+        window.location.href = '../login.html';
+    }
+};
+    </script>
+</body>
+</html>

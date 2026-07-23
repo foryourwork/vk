@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIS Lead | Pipeline Control</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-dark text-white p-3">
+
+<div class="container">
+    <h4 class="fw-bold mb-4">MIS LEAD PIPELINE</h4>
+    
+    <div class="row g-2 mb-4">
+        <div class="col-6">
+            <button class="btn btn-primary w-100 py-3 fw-bold" onclick="bulkSync()">BULK SYNC</button>
+        </div>
+        <div class="col-6">
+            <button class="btn btn-success w-100 py-3 fw-bold" onclick="markPaid()">MARK PAID</button>
+        </div>
+    </div>
+
+    <div id="mis_list"></div>
+</div>
+
+<script>
+    firebase.initializeApp({ databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app" });
+    const db = firebase.database();
+    let user = JSON.parse(sessionStorage.getItem('activeUser')) || { name: "MIS Lead Aman", pin: "1234" };
+
+    async function bulkSync() {
+        const { value: pin } = await Swal.fire({ title: 'Enter Login PIN', input: 'password' });
+        if(pin !== user.pin) return;
+
+        Swal.fire({ title: 'Syncing...', didOpen: () => Swal.showLoading() });
+        const snap = await db.ref('vssy_pipeline').once('value');
+        
+        for (const child of Object.values(snap.val() || {})) {
+            if(!child.is_synced) {
+                try {
+                    const res = await fetch('http://localhost:5000/track', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ app_id: child.app_id })
+                    });
+                    const data = await res.json();
+                    if(res.ok) {
+                        db.ref('vssy_pipeline/' + child.app_id).update({
+                            applicant_name: data.info.applicant_name,
+                            status: data.info.status_str,
+                            mobile: data.info.mobile_no,
+                            scheme: data.info.scheme_name,
+                            update_time: data.info.c_time_stamp_str,
+                            is_synced: true, payment_status: 'Unpaid'
+                        });
+                    }
+                } catch(e) { console.error("Sync Failed for " + child.app_id); }
+            }
+        }
+        Swal.fire('Success', 'Sync Complete!', 'success');
+    }
+
+    async function markPaid() {
+        const { value: pin } = await Swal.fire({ title: 'Admin PIN to Mark Paid', input: 'password' });
+        if(pin !== user.pin) return;
+
+        const snap = await db.ref('vssy_pipeline').once('value');
+        snap.forEach(child => {
+            if(child.val().is_synced && child.val().payment_status === 'Unpaid') {
+                // Payment Paid mark karke list se nahi hatayenge (5 din tak rahegi)
+                // Manager dashboard par bill check "payment_status === 'Unpaid'" par hai
+                db.ref('vssy_pipeline/' + child.key).update({ payment_status: 'Paid' });
+            }
+        });
+        Swal.fire('Paid', 'Amount reduced from Manager Dashboard.', 'success');
+    }
+
+    db.ref('vssy_pipeline').on('value', snap => {
+        let h = '';
+        snap.forEach(c => {
+            const d = c.val();
+            h += `<div class="card bg-secondary text-white mb-2 p-2 border-0">
+                <div class="d-flex justify-content-between">
+                    <b>${d.app_id}</b>
+                    <span class="badge ${d.payment_status === 'Paid' ? 'bg-success' : 'bg-danger'}">${d.payment_status}</span>
+                </div>
+                <small>By: ${d.manager_name} | Sync: ${d.is_synced}</small>
+            </div>`;
+        });
+        document.getElementById('mis_list').innerHTML = h;
+    });
+</script>
+</body>
+</html>

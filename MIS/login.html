@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Secure Access | VKETC Portal</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --primary: #ff3131; --bg-dark: #07090f; --card-bg: rgba(20, 24, 35, 0.9); --success: #00d26a; }
+        * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            margin: 0; min-height: 100vh; display: flex; align-items: center; 
+            justify-content: center; padding: 20px; background: var(--bg-dark); color: #fff;
+            overflow: hidden;
+        }
+
+        .bg-mesh {
+            position: fixed; inset: 0; z-index: -1;
+            background: radial-gradient(circle at 10% 20%, rgba(220, 38, 38, 0.15) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(30, 58, 138, 0.15) 0%, transparent 40%);
+        }
+
+        .login-card { 
+            background: var(--card-bg); backdrop-filter: blur(20px);
+            padding: 40px 25px; border-radius: 35px; 
+            width: 100%; max-width: 400px; text-align: center; 
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+
+        .brand-icon {
+            width: 70px; height: 70px; background: rgba(220, 38, 38, 0.1);
+            border-radius: 20px; display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 20px; font-size: 30px; color: var(--primary);
+            border: 1px solid rgba(220, 38, 38, 0.2);
+        }
+
+        .form-group { text-align: left; margin-bottom: 25px; position: relative; }
+        label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-left: 5px; margin-bottom: 8px; display: block; letter-spacing: 1px; }
+        
+        input[type="tel"] {
+            width: 100%; padding: 18px; border: 2px solid rgba(255,255,255,0.05);
+            border-radius: 18px; background: rgba(0,0,0,0.3); color: #fff; font-size: 18px; transition: 0.3s;
+            font-weight: 600;
+        }
+        input:focus { border-color: var(--primary); outline: none; background: rgba(0,0,0,0.5); }
+
+        .pin-wrapper { display: flex; justify-content: space-between; margin-top: 10px; gap: 10px; }
+        .pin-input {
+            width: 22%; height: 60px; text-align: center; font-size: 24px; font-weight: 800;
+            background: rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.05); border-radius: 15px; color: var(--primary);
+            outline: none;
+        }
+        .pin-input:focus { border-color: var(--primary); background: rgba(0,0,0,0.5); }
+
+        .btn-login {
+            width: 100%; padding: 20px; background: var(--primary); color: white;
+            border: none; border-radius: 20px; font-weight: 800; cursor: pointer;
+            font-size: 17px; margin-top: 25px; transition: transform 0.2s;
+            box-shadow: 0 10px 20px rgba(255, 49, 49, 0.2);
+        }
+        .btn-login:active { transform: scale(0.96); }
+
+        #successOverlay {
+            position: fixed; inset: 0; background: #fff; z-index: 9999;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .tick-circle {
+            width: 120px; height: 120px; border-radius: 50%; background: var(--success);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 60px; color: white; margin-bottom: 20px;
+            box-shadow: 0 15px 30px rgba(0, 210, 106, 0.3);
+        }
+
+        #roleOverlay {
+            position: fixed; inset: 0; background: rgba(7, 9, 15, 0.95); z-index: 5000;
+            display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px);
+        }
+        .role-card { background: #1e293b; padding: 30px; border-radius: 30px; width: 90%; max-width: 350px; text-align: center; }
+
+        .footer-links { display: flex; justify-content: space-between; margin-top: 25px; font-size: 12px; color: #64748b; }
+        .remember-me { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #94a3b8; }
+        .remember-me input { accent-color: var(--primary); width: 16px; height: 16px; }
+    </style>
+</head>
+<body>
+
+<div class="bg-mesh"></div>
+
+<div id="successOverlay">
+    <div class="tick-circle animate__animated animate__zoomIn">
+        <i class="fas fa-check"></i>
+    </div>
+    <h2 class="animate__animated animate__fadeInUp" style="color: #111; margin: 0;">Login Successful</h2>
+    <p class="animate__animated animate__fadeInUp" style="color: #666;">Redirecting to workspace...</p>
+</div>
+
+<div id="roleOverlay">
+    <div class="role-card animate__animated animate__slideInUp">
+        <h3 style="margin-top: 0;">Multiple Roles Found</h3>
+        <p style="color: #94a3b8; font-size: 13px;">Choose which portal you want to access</p>
+        <div id="roleList"></div>
+    </div>
+</div>
+
+<div class="login-card animate__animated animate__fadeIn">
+    <div class="brand-icon"><i class="fas fa-shield-halved"></i></div>
+    <h2 style="margin: 0 0 5px 0; font-size: 26px; font-weight: 800;">VKETC Login</h2>
+    <p style="color: #64748b; font-size: 14px; margin-bottom: 35px;">Access your employee account</p>
+
+    <div class="form-group">
+        <label>Mobile Number</label>
+        <input type="tel" id="loginMobile" placeholder="Enter 10 digits" maxlength="10" inputmode="numeric">
+    </div>
+
+    <div class="form-group">
+        <label>Enter 4-Digit PIN</label>
+        <div class="pin-wrapper">
+            <input type="password" class="pin-input" maxlength="1" inputmode="numeric">
+            <input type="password" class="pin-input" maxlength="1" inputmode="numeric">
+            <input type="password" class="pin-input" maxlength="1" inputmode="numeric">
+            <input type="password" class="pin-input" maxlength="1" inputmode="numeric">
+        </div>
+    </div>
+
+    <button class="btn-login" onclick="attemptLogin()">Secure Login</button>
+
+    <div class="footer-links">
+        <label class="remember-me">
+            <input type="checkbox" id="rememberMe" checked> Remember Me
+        </label>
+        <span style="color: var(--primary); font-weight: 700; cursor: pointer;" onclick="openHelpForm()">Forgot PIN?</span>
+    </div>
+</div>
+
+<script>
+// Firebase Config
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// --- Mobile Optimized PIN Logic ---
+const pins = document.querySelectorAll('.pin-input');
+pins.forEach((pin, index) => {
+    pin.addEventListener('input', (e) => {
+        if (e.target.value.length === 1 && index < 3) pins[index + 1].focus();
+    });
+    pin.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !e.target.value && index > 0) pins[index - 1].focus();
+    });
+});
+
+// --- Multi-Tab & Auto Login Logic ---
+function checkExistingLogin() {
+    // sessionStorage check (same tab) or localStorage (cross-tab/remember me)
+    const savedUser = localStorage.getItem('persistentUser') || sessionStorage.getItem('activeUser');
+    if (savedUser) {
+        executeSuccess(JSON.parse(savedUser), true);
+    }
+}
+
+// Dusre tab mein login/logout detect karne ke liye
+window.addEventListener('storage', (e) => {
+    if (e.key === 'persistentUser' && e.newValue) {
+        window.location.reload(); // Auto login if logged in elsewhere
+    }
+});
+
+window.onload = checkExistingLogin;
+
+async function attemptLogin() {
+    const mobile = document.getElementById('loginMobile').value;
+    let pin = "";
+    pins.forEach(p => pin += p.value);
+
+    if (mobile.length !== 10) return Swal.fire('Error', 'Invalid Mobile', 'error');
+    if (pin.length !== 4) return Swal.fire('Error', 'Enter 4-digit PIN', 'error');
+
+    Swal.showLoading();
+    
+    const snap = await db.ref('EmployeeAuthList').once('value');
+    let authenticatedUser = null;
+
+    snap.forEach(c => {
+        const data = c.val();
+        if (data.mobile === "+91 " + mobile && data.pin === pin) {
+            authenticatedUser = data;
+        }
+    });
+
+    if (authenticatedUser) {
+        if (document.getElementById('rememberMe').checked) {
+            localStorage.setItem('persistentUser', JSON.stringify(authenticatedUser));
+        }
+        executeSuccess(authenticatedUser, false);
+    } else {
+        Swal.fire('Failed', 'Incorrect Mobile or PIN', 'error');
+    }
+}
+
+function executeSuccess(user, isInstant) {
+    sessionStorage.setItem('activeUser', JSON.stringify(user));
+    
+    // Agar pehle se login hai toh animation skip karke seedha bhejenge
+    if (isInstant) {
+        handleRedirection(user);
+        return;
+    }
+
+    document.getElementById('successOverlay').style.display = 'flex';
+    setTimeout(() => handleRedirection(user), 1600);
+}
+
+function handleRedirection(user) {
+    const roles = user.roles || [user.role];
+    if (roles.length > 1) {
+        document.getElementById('successOverlay').style.display = 'none';
+        showRoles(roles);
+    } else {
+        finalRedirect(roles[0]);
+    }
+}
+
+function showRoles(roles) {
+    const list = document.getElementById('roleList');
+    list.innerHTML = '';
+    roles.forEach(r => {
+        const btn = document.createElement('button');
+        btn.className = "btn-login";
+        btn.style.marginTop = "10px";
+        btn.innerText = r;
+        btn.onclick = () => finalRedirect(r);
+        list.appendChild(btn);
+    });
+    document.getElementById('roleOverlay').style.display = 'flex';
+}
+
+function finalRedirect(role) {
+    let url = "";
+    if (role === "Verifier") url = "../VERIFIER/vr_dash.html";
+    else if (role === "MIS Lead") url = "../MIS/mis_dash.html";
+    else if (role === "Caller") url = "../CALLER/cl_dash.html";
+    else if (role === "Administrator") url = "../MANAGER/MANAGER.html";
+    else if (role === "Doc Expert") url = "../document.html";
+    else if (role === "HR Specialist") url = "../manage.html";
+    
+    if(url) window.location.href = url;
+}
+
+async function openHelpForm() {
+    const { value: mob } = await Swal.fire({
+        title: 'Security Support',
+        input: 'number',
+        inputPlaceholder: 'Registered Mobile Number',
+        confirmButtonText: 'Verify Mobile'
+    });
+    if (mob) Swal.fire('Request Received', 'IT team will contact you on WhatsApp.', 'success');
+}
+</script>
+</body>
+</html>

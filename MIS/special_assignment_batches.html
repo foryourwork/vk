@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade Master Console Pro | Aman Shrivastav</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #4f46e5; --special: #be123c; --bg: #f8fafc; --dark: #1e293b; --success: #10b981; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--dark); }
+        .container { max-width: 1500px; margin: 0 auto; }
+        .nav-header { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; background: white; padding: 15px 25px; border-radius: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .back-btn { font-size: 22px; color: var(--dark); cursor: pointer; }
+        .filter-card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; align-items: flex-end; }
+        label { display: block; font-size: 10px; font-weight: 800; color: var(--primary); margin-bottom: 6px; text-transform: uppercase; }
+        select, input { width: 100%; padding: 10px; border-radius: 10px; border: 1.5px solid #e2e8f0; font-weight: 600; outline: none; background: #fff; }
+        .btn { padding: 10px 16px; border-radius: 10px; font-weight: 700; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; transition: 0.2s; }
+        .btn:active { transform: scale(0.95); }
+        .btn-excel { background: var(--dark); color: white; }
+        .btn-apply { background: var(--primary); color: white; }
+        .btn-dummy { background: #6366f1; color: white; }
+        .btn-edit { background: #f59e0b; color: white; padding: 5px 8px; border-radius: 6px; }
+        .btn-remove { background: var(--special); color: white; padding: 5px 8px; border-radius: 6px; }
+        .table-container { background: white; border-radius: 16px; overflow-x: auto; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+        th { background: #f8fafc; padding: 12px 15px; text-align: left; font-size: 10px; color: #64748b; text-transform: uppercase; border-bottom: 2px solid #edf2f7; }
+        td { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        .special-row { background: #fff1f2 !important; border-left: 4px solid var(--special); }
+        .loading-spinner { display: none; text-align: center; padding: 20px; font-weight: bold; color: var(--primary); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="nav-header">
+        <i class="fas fa-arrow-left back-btn" onclick="window.history.back()"></i>
+        <div style="flex-grow: 1;">
+            <h2 style="margin:0;">Batch Master Sync Pro</h2>
+            <div style="font-size: 12px; color: #64748b;">UTB - Unique Thing Builder | Aman Shrivastav</div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-dummy" onclick="downloadDummyAadharList()">
+                <i class="fas fa-id-card"></i> 9999... LIST
+            </button>
+            <button class="btn btn-excel" onclick="downloadTradeWorkbook()">
+                <i class="fas fa-file-excel"></i> DOWNLOAD ALL BATCHES
+            </button>
+        </div>
+    </div>
+
+    <div class="filter-card">
+        <div class="filter-grid">
+            <div><label>1. Master List</label><select id="listSelect" onchange="loadTrainings()"><option value="">-- Choose List --</option></select></div>
+            <div><label>2. Trade</label><select id="trainingSelect" onchange="loadBatches()"><option value="">-- Select Trade --</option></select></div>
+            <div>
+                <label>3. Status</label>
+                <select id="statusFilter" onchange="loadBatches()">
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                </select>
+            </div>
+            <div><label>4. Select Batch</label><select id="batchSelect"><option value="">-- Select Batch --</option></select></div>
+            <div><button class="btn btn-apply" onclick="renderBatchTable()"><i class="fas fa-filter"></i> APPLY FILTER</button></div>
+        </div>
+    </div>
+
+    <div id="loader" class="loading-spinner"><i class="fas fa-sync fa-spin"></i> Data Syncing...</div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>App No</th>
+                    <th>Candidate & Father</th>
+                    <th>Aadhar Card</th>
+                    <th>DOB</th>
+                    <th>Verifier/Area Name</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="dataTable"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let batchesData = {}, enrollments = {}, specialData = {}, cachedMasterMap = {};
+let verifiersList = ["RUBY", "ANGRAJ", "RAMDAS", "VINOD", "RAJ KAROSIYA", "SNEHA"];
+
+window.onload = () => {
+    db.ref('OverallListsMetadata').on('value', s => {
+        let h = '<option value="">-- Choose List --</option>';
+        s.forEach(c => { if(c.val().status !== 'Hide It') h += `<option value="${c.key}">${c.val().listName}</option>`; });
+        document.getElementById('listSelect').innerHTML = h;
+    });
+    db.ref('Batches').on('value', s => batchesData = s.val() || {});
+    db.ref('BatchEnrollments').on('value', s => enrollments = s.val() || {});
+    db.ref('SpecialCandidatesList').on('value', s => {
+        specialData = {};
+        s.forEach(c => { const v = c.val(); specialData[String(v.appNo).toUpperCase()] = { ...v, fbKey: c.key }; });
+        if(document.getElementById('dataTable').innerHTML !== "") renderBatchTable(true);
+    });
+};
+
+function loadTrainings() {
+    const lid = document.getElementById('listSelect').value;
+    if(!lid) return;
+    db.ref('Trainings').once('value', s => {
+        let h = '<option value="">-- Select Trade --</option>';
+        s.forEach(c => { if(c.val().listId === lid) h += `<option value="${c.key}" data-trade="${c.val().tradeName}">${c.val().trainingName}</option>`; });
+        document.getElementById('trainingSelect').innerHTML = h;
+    });
+}
+
+function loadBatches() {
+    const tradeSelect = document.getElementById('trainingSelect');
+    const trade = tradeSelect.options[tradeSelect.selectedIndex]?.getAttribute('data-trade');
+    const status = document.getElementById('statusFilter').value;
+    let h = '<option value="">-- Select Batch --</option>';
+    for(let id in batchesData) {
+        if(batchesData[id].trainingName === trade && batchesData[id].status === status) 
+            h += `<option value="${id}">${batchesData[id].batchName}</option>`;
+    }
+    document.getElementById('batchSelect').innerHTML = h;
+}
+
+async function renderBatchTable(isSilent = false) {
+    const bid = document.getElementById('batchSelect').value;
+    const lid = document.getElementById('listSelect').value;
+    if(!bid || !lid) return isSilent ? null : Swal.fire('Error', 'Selection Complete Karein');
+
+    if(!isSilent) document.getElementById('loader').style.display = 'block';
+    
+    // Build Fast Map if not exists or if list changed
+    if(!isSilent || Object.keys(cachedMasterMap).length === 0) {
+        const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+        const master = snap.val() || {};
+        cachedMasterMap = {};
+        Object.values(master).forEach(x => { if(x.applicationNumber) cachedMasterMap[String(x.applicationNumber).toUpperCase()] = x; });
+    }
+    
+    let h = '';
+    const currentEnroll = enrollments[bid] || {};
+    Object.keys(currentEnroll).forEach(appNo => {
+        const appKey = appNo.toUpperCase();
+        const m = cachedMasterMap[appKey] || {};
+        const s = specialData[appKey];
+        h += `<tr class="${s ? 'special-row' : ''}">
+            <td><b>${appKey}</b></td>
+            <td>${(m.applicantName || 'N/A').toUpperCase()}<br><small>${(m.fatherName || 'N/A').toUpperCase()}</small></td>
+            <td style="color:#4f46e5; font-weight:700;">${m.verifiedAadhar || '---'}</td>
+            <td>${m.dob || '---'}</td>
+            <td><span class="badge" style="background:#e2e8f0; padding:4px 8px; border-radius:5px;">${s ? s.of : 'REGULAR'}</span></td>
+            <td><small>${s ? s.status : 'Regular Batch'}</small></td>
+            <td style="text-align: right;">
+                <div style="display:flex; gap:5px; justify-content:flex-end;">
+                    ${s ? `<button class="btn btn-edit" onclick="editSpecial('${appKey}')"><i class="fas fa-edit"></i></button>
+                           <button class="btn btn-remove" onclick="removeSpecial('${s.fbKey}')"><i class="fas fa-trash"></i></button>` : 
+                        `<button class="btn btn-add" onclick="markSpecial('${appKey}', '${m.applicantName}', '${m.fatherName}', '${m.mobile}', '${m.dob}')">MARK SPECIAL</button>`}
+                </div>
+            </td>
+        </tr>`;
+    });
+    document.getElementById('dataTable').innerHTML = h || '<tr><td colspan="7">No Data</td></tr>';
+    document.getElementById('loader').style.display = 'none';
+}
+
+async function getVerifierSelection(currentVal = "") {
+    const { value: formValues } = await Swal.fire({
+        title: 'Select Verifier/Area',
+        html: `
+            <select id="swal-of" class="swal2-input" style="width:85%;">
+                ${verifiersList.map(v => `<option value="${v}" ${v===currentVal ? 'selected':''}>${v}</option>`).join('')}
+                <option value="CUSTOM">-- CUSTOM ADD --</option>
+            </select>
+            <input id="swal-custom" class="swal2-input" style="display:none; width:85%;" placeholder="Enter New Name">
+        `,
+        didOpen: () => {
+            const s = document.getElementById('swal-of');
+            const i = document.getElementById('swal-custom');
+            s.onchange = () => i.style.display = s.value === 'CUSTOM' ? 'block' : 'none';
+        },
+        preConfirm: () => {
+            const s = document.getElementById('swal-of').value;
+            return s === 'CUSTOM' ? document.getElementById('swal-custom').value : s;
+        }
+    });
+    return formValues;
+}
+
+async function markSpecial(appNo, name, father, mobile, dob) {
+    const tradeSelect = document.getElementById('trainingSelect');
+    const trade = tradeSelect.options[tradeSelect.selectedIndex].text;
+    const area = await getVerifierSelection();
+    if (area) {
+        await db.ref('SpecialCandidatesList').push({
+            appNo, name, father, trade, of: area.toUpperCase(), mobile: mobile || '', dob: dob || '',
+            status: "Forwarded to Training Institute by DIC", entryAt: new Date().toLocaleString()
+        });
+    }
+}
+
+async function editSpecial(appKey) {
+    const s = specialData[appKey];
+    const newOf = await getVerifierSelection(s.of);
+    if(newOf) await db.ref(`SpecialCandidatesList/${s.fbKey}`).update({ of: newOf.toUpperCase() });
+}
+
+async function removeSpecial(key) {
+    const res = await Swal.fire({ title: 'Remove Special Status?', showCancelButton: true, icon: 'warning' });
+    if(res.isConfirmed) await db.ref(`SpecialCandidatesList/${key}`).remove();
+}
+
+// FAST EXCEL LOGIC
+async function downloadTradeWorkbook() {
+    const tradeSelect = document.getElementById('trainingSelect');
+    const tradeName = tradeSelect.options[tradeSelect.selectedIndex]?.getAttribute('data-trade');
+    const lid = document.getElementById('listSelect').value;
+    if(!tradeName || !lid) return Swal.fire('Error', 'Trade & List select karein');
+
+    Swal.fire({ title: 'Processing Excel...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    const master = snap.val() || {};
+    const localMap = {};
+    Object.values(master).forEach(x => { if(x.applicationNumber) localMap[String(x.applicationNumber).toUpperCase()] = x; });
+
+    const wb = XLSX.utils.book_new();
+    let allInOneData = [];
+
+    for(let bid in batchesData) {
+        if(batchesData[bid].trainingName === tradeName) {
+            let batchRows = [];
+            const enrolls = enrollments[bid] || {};
+            Object.keys(enrolls).forEach((app, idx) => {
+                const appKey = app.toUpperCase();
+                const m = localMap[appKey] || {};
+                const s = specialData[appKey] || {};
+                const row = {
+                    'Sr': idx + 1,
+                    'Candidate Name': (m.applicantName || 'N/A').toUpperCase(),
+                    'Father Name': (m.fatherName || 'N/A').toUpperCase(),
+                    'DOB': m.dob || '---',
+                    'Mobile Number': m.mobile || '---',
+                    'Adharcard Number': m.verifiedAadhar || '---',
+                    'Area Verifier Name': s.of || 'REGULAR',
+                    'Trade': tradeName
+                };
+                batchRows.push(row);
+                allInOneData.push({...row, 'Batch Name': batchesData[bid].batchName});
+            });
+            if(batchRows.length > 0) {
+                const ws = XLSX.utils.json_to_sheet(batchRows);
+                XLSX.utils.book_append_sheet(wb, ws, batchesData[bid].batchName.substring(0,31));
+            }
+        }
+    }
+
+    if(allInOneData.length > 0) {
+        const wsAll = XLSX.utils.json_to_sheet(allInOneData);
+        XLSX.utils.book_insert_sheet(wb, wsAll, "ALL_IN_ONE", 0);
+        XLSX.writeFile(wb, `Report_${tradeName}.xlsx`);
+        Swal.close();
+    } else {
+        Swal.fire('No Data', 'Records nahi mile', 'info');
+    }
+}
+
+async function downloadDummyAadharList() {
+    const tradeSelect = document.getElementById('trainingSelect');
+    const tradeName = tradeSelect.options[tradeSelect.selectedIndex]?.getAttribute('data-trade');
+    const lid = document.getElementById('listSelect').value;
+    if(!tradeName || !lid) return Swal.fire('Error', 'Selection karein');
+
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    const master = snap.val() || {};
+    const localMap = {};
+    Object.values(master).forEach(x => { if(x.applicationNumber) localMap[String(x.applicationNumber).toUpperCase()] = x; });
+
+    let dummyList = [];
+    for(let bid in batchesData) {
+        if(batchesData[bid].trainingName === tradeName) {
+            Object.keys(enrollments[bid] || {}).forEach(app => {
+                const appKey = app.toUpperCase();
+                const m = localMap[appKey] || {};
+                if(String(m.verifiedAadhar || "").includes("999999999999")) {
+                    const s = specialData[appKey] || {};
+                    dummyList.push({
+                        'Sr': dummyList.length + 1,
+                        'Candidate Name': (m.applicantName || 'N/A').toUpperCase(),
+                        'Father Name': (m.fatherName || 'N/A').toUpperCase(),
+                        'DOB': m.dob || '---',
+                        'Mobile Number': m.mobile || '---',
+                        'Adharcard Number': m.verifiedAadhar,
+                        'Area Verifier Name': s.of || 'REGULAR',
+                        'Trade': tradeName
+                    });
+                }
+            });
+        }
+    }
+
+    if(dummyList.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(dummyList);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "9999 List");
+        XLSX.writeFile(wb, `Dummy_9999_${tradeName}.xlsx`);
+    } else {
+        Swal.fire('Not Found', '999999999999 aadhar nahi mila', 'info');
+    }
+}
+</script>
+</body>
+</html>

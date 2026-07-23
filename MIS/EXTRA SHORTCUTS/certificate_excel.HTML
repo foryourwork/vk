@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Pro | Certificate Excel Master V3</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --red: #be123c; --red-bg: #fff1f2; --gradient: linear-gradient(135deg, #be123c, #fb7185); }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--red-bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .card { background: white; border-radius: 28px; padding: 35px; width: 100%; max-width: 500px; box-shadow: 0 20px 40px rgba(190, 18, 60, 0.1); border: 1px solid #ffe4e6; text-align: center; }
+        .header-icon { width: 70px; height: 70px; background: var(--red-bg); color: var(--red); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 30px; margin: 0 auto 20px; }
+        h2 { color: var(--red); font-weight: 800; margin-bottom: 10px; }
+        p { color: #64748b; font-size: 13px; margin-bottom: 25px; }
+        label { display: block; text-align: left; font-size: 11px; font-weight: 800; color: var(--red); margin-bottom: 8px; text-transform: uppercase; margin-top: 15px; }
+        select { width: 100%; padding: 14px; border-radius: 14px; border: 2px solid #fda4af; font-weight: 600; font-size: 14px; outline: none; background: #fffcfc; transition: 0.3s; margin-bottom: 5px; }
+        .btn-download { background: var(--gradient); color: white; border: none; width: 100%; padding: 16px; border-radius: 16px; font-weight: 800; font-size: 15px; cursor: pointer; margin-top: 30px; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s; box-shadow: 0 10px 20px rgba(190, 18, 60, 0.2); }
+        .btn-download:disabled { background: #cbd5e1; cursor: not-allowed; }
+        #loader { display: none; margin-top: 15px; font-weight: 700; color: var(--red); font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="header-icon"><i class="fas fa-file-excel"></i></div>
+    <h2>Pro Sync Export</h2>
+    <p>Custom Sequence & Gender Formatting Enabled</p>
+
+    <label>1. Master List</label>
+    <select id="listSelect" onchange="fetchTrainings(this.value)">
+        <option value="">-- Choose Master List --</option>
+    </select>
+
+    <label>2. Training/Trade</label>
+    <select id="trainingSelect" disabled>
+        <option value="">-- Select Training --</option>
+    </select>
+
+    <button id="downloadBtn" class="btn-download" onclick="generateExcel()" disabled>
+        <i class="fas fa-file-download"></i> SYNC & DOWNLOAD EXCEL
+    </button>
+    
+    <div id="loader"><i class="fas fa-spinner fa-spin"></i> Processing Data...</div>
+</div>
+
+<script>
+// Firebase Config
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Helper: Format Date to DD-MM-YYYY
+function formatDate(dateStr) {
+    if (!dateStr || dateStr === "N/A" || dateStr === "-") return "-";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+}
+
+// Helper: Convert Gender to M/F
+function formatGender(gender) {
+    if (!gender) return "-";
+    const g = gender.toLowerCase();
+    if (g === 'male' || g === 'm') return 'M';
+    if (g === 'female' || g === 'f') return 'F';
+    return gender;
+}
+
+window.onload = () => {
+    db.ref('OverallListsMetadata').once('value', snap => {
+        const sel = document.getElementById('listSelect');
+        snap.forEach(c => {
+            if(c.val().status !== 'Hide It') sel.innerHTML += `<option value="${c.key}">${c.val().listName}</option>`;
+        });
+    });
+};
+
+async function fetchTrainings(listId) {
+    const ts = document.getElementById('trainingSelect');
+    const btn = document.getElementById('downloadBtn');
+    ts.innerHTML = '<option value="">-- Select Training --</option>';
+    if(!listId) { ts.disabled = true; btn.disabled = true; return; }
+
+    db.ref('Trainings').orderByChild('listId').equalTo(listId).once('value', snap => {
+        snap.forEach(c => {
+            ts.innerHTML += `<option value="${c.key}" data-trade="${c.val().tradeName}">${c.val().trainingName}</option>`;
+        });
+        ts.disabled = false; btn.disabled = false;
+    });
+}
+
+async function generateExcel() {
+    const listId = document.getElementById('listSelect').value;
+    const tradeName = document.getElementById('trainingSelect').options[document.getElementById('trainingSelect').selectedIndex].getAttribute('data-trade');
+
+    document.getElementById('loader').style.display = 'block';
+    const btn = document.getElementById('downloadBtn');
+    btn.disabled = true;
+
+    try {
+        const batchesSnap = await db.ref('Batches').once('value');
+        let relevantBatches = [];
+        batchesSnap.forEach(c => {
+            const b = c.val();
+            if(b.listId === listId && b.trainingName === tradeName) relevantBatches.push({ id: c.key, ...b });
+        });
+
+        const enrollSnap = await db.ref('BatchEnrollments').once('value');
+        const enrollments = enrollSnap.val() || {};
+        const masterSnap = await db.ref(`FullDataEntries/${listId}`).once('value');
+        const masterData = masterSnap.val() || {};
+
+        let totalTradeBatchCount = 0;
+        relevantBatches.forEach(b => {
+            if(enrollments[b.id]) totalTradeBatchCount += Object.keys(enrollments[b.id]).length;
+        });
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Sync Report');
+
+        // New Column Sequence as requested
+        worksheet.columns = [
+            { header: 'SR', key: 'sr', width: 6 },
+            { header: 'APPLICATION ID', key: 'appNo', width: 18 },
+            { header: 'NAME', key: 'name', width: 25 },
+            { header: 'GENDER', key: 'gender', width: 10 },
+            { header: 'MOBILE NUMBER', key: 'mobile', width: 15 },
+            { header: 'FATHER NAME', key: 'father', width: 25 },
+            { header: 'CASTE', key: 'caste', width: 12 },
+            { header: 'ADHAR NUMBER', key: 'aadhar', width: 20 },
+            { header: 'DOB', key: 'dob', width: 14 },
+            { header: 'ACCOUNT NUMBER', key: 'acc', width: 20 },
+            { header: 'IFSC', key: 'ifsc', width: 15 },
+            { header: 'BANK NAME AND ADDRESS', key: 'bank', width: 35 },
+            { header: 'ALTERNATIVE NUMBER', key: 'alt', width: 15 },
+            { header: 'TRADE', key: 'trade', width: 20 },
+            { header: 'BATCH', key: 'batch', width: 15 },
+            { header: 'BATCH FROM DATE', key: 'from', width: 18 },
+            { header: 'BATCH TO DATE', key: 'to', width: 18 },
+            { header: 'TOTAL COUNTING IN BATCH', key: 'bCount', width: 22 },
+            { header: 'TOTAL COUNTING IN TRADE', key: 'tCount', width: 22 },
+            { header: 'ISSUE DATE', key: 'issueDate', width: 15 }
+        ];
+
+        let globalSr = 1;
+        const todayStr = formatDate(new Date().toISOString());
+
+        relevantBatches.forEach(batch => {
+            const batchMembers = enrollments[batch.id] ? Object.keys(enrollments[batch.id]) : [];
+            batchMembers.forEach(appNo => {
+                const m = Object.values(masterData).find(x => String(x.applicationNumber) === String(appNo));
+                if(m) {
+                    worksheet.addRow({
+                        sr: globalSr++,
+                        appNo: m.applicationNumber || '-',
+                        name: (m.applicantName || '').toUpperCase(),
+                        gender: formatGender(m.gender),
+                        mobile: m.mobile || '-',
+                        father: (m.fatherName || '').toUpperCase(),
+                        caste: m.category || '-',
+                        aadhar: m.verifiedAadhar || m.aadhar || '-',
+                        dob: formatDate(m.dob),
+                        acc: m.bankAccountNumber || '-',
+                        ifsc: m.ifsc || '-',
+                        bank: `${m.bankName || ''} ${m.branchName || ''}`.trim() || '-',
+                        alt: m.alternateMobile || '-',
+                        trade: tradeName,
+                        batch: batch.batchName,
+                        from: formatDate(batch.startDate),
+                        to: formatDate(batch.endDate),
+                        bCount: batchMembers.length,
+                        tCount: totalTradeBatchCount,
+                        issueDate: todayStr
+                    });
+                }
+            });
+        });
+
+        // Header Styling
+        worksheet.getRow(1).eachCell((cell) => {
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBE123C' } };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        });
+
+        // Body Borders & Auto-alignment
+        worksheet.eachRow((row) => {
+            row.eachCell((cell) => {
+                cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+            });
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), `Final_Certificate_Report_${tradeName.replace(/\s+/g, '_')}.xlsx`);
+        Swal.fire('Excel Generated!', 'Sequence and Gender formatting applied.', 'success');
+
+    } catch (e) {
+        Swal.fire('Error', 'Syncing Failed', 'error');
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+        btn.disabled = false;
+    }
+}
+</script>
+</body>
+</html>

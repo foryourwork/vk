@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VSSY | Master Admin Panel</title>
+    
+    <script>
+        (function() {
+            const activeUser = JSON.parse(sessionStorage.getItem('activeUser'));
+            if (!activeUser) {
+                window.location.href = "login.html";
+                return;
+            }
+            const roles = activeUser.roles || [activeUser.role];
+            const isMIS = roles.some(r => String(r).toLowerCase() === 'mis lead');
+            if (!isMIS) {
+                alert("Access Denied! आपकी भूमिका (Role) इस पेज के लिए अधिकृत नहीं है।");
+                window.location.href = "login.html"; 
+            }
+        })();
+    </script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --primary: #dc2626; --accent: #4338ca; --bg: #f8fafc; --text: #1e293b; --white: #ffffff; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: var(--text); }
+        .navbar { background: var(--white); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 1000; }
+        .user-info { text-align: right; }
+        .user-info b { color: var(--primary); display: block; font-size: 14px; text-transform: capitalize; }
+        .user-info span { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+        .main-container { max-width: 1550px; margin: 15px auto; padding: 0 15px; display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 992px) { .main-container { grid-template-columns: 350px 1fr; } }
+        .card { background: var(--white); border-radius: 16px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        label { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 6px; display: block; }
+        input, select { width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 10px; margin-bottom: 15px; box-sizing: border-box; font-family: inherit; }
+        .btn-submit { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 10px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+        .table-wrapper { overflow-x: auto; }
+        @media (max-width: 768px) {
+            table, thead, tbody, th, td, tr { display: block; }
+            thead { display: none; }
+            tr { margin-bottom: 15px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; background: white; }
+            td { display: flex; justify-content: space-between; padding: 8px 5px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+            td::before { content: attr(data-label); font-weight: 800; color: #64748b; font-size: 10px; text-align: left; flex: 1; }
+        }
+        @media (min-width: 769px) {
+            table { width: 100%; border-collapse: collapse; }
+            th { text-align: left; padding: 12px; background: #f8fafc; font-size: 11px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+            td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        }
+        .action-btns { display: flex; gap: 8px; }
+        .act-btn { width: 34px; height: 34px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        
+        /* Custom Role Style */
+        .custom-role-flex { display: flex; gap: 8px; margin-bottom: 10px; }
+        .custom-role-flex input { margin-bottom: 0; flex: 1; }
+        .btn-add-role { background: var(--accent); color: white; border: none; border-radius: 10px; padding: 0 15px; font-weight: 700; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <button onclick="window.history.back()" style="background:none; border:none; color:var(--primary); font-size:20px; cursor:pointer;"><i class="fas fa-arrow-left"></i></button>
+        <div style="font-weight: 800; font-size: 16px;">VSSY ADMIN</div>
+    </div>
+    <div class="user-info">
+        <b id="activeUserName">Admin Name</b>
+        <span id="activeUserRole">MIS Lead</span>
+    </div>
+</div>
+
+<div class="main-container">
+    <div class="card">
+        <h3 id="formTitle" style="margin-top:0; color:var(--primary); font-weight: 800;">Employee Registration</h3>
+        <input type="hidden" id="editModeId">
+        
+        <label>Full Name</label>
+        <input type="text" id="empName" placeholder="Enter full name">
+
+        <label>Custom Role (Optional)</label>
+        <div class="custom-role-flex">
+            <input type="text" id="customRoleInput" placeholder="Enter new role...">
+            <button type="button" class="btn-add-role" onclick="addCustomRole()">ADD</button>
+        </div>
+
+        <label>Select Roles (Max 3)</label>
+        <select id="empRoles" multiple style="height: 120px;">
+            <option value="Caller">Calling Department (Caller)</option>
+            <option value="Verifier">Verification Department (Verifier)</option>
+            <option value="Doc Expert">Document Manage (Doc Expert)</option>
+            <option value="HR Specialist">HR Specialist</option>
+            <option value="Administrator">Manager (Administrator)</option>
+            <option value="MIS Lead">MIS (MIS Lead)</option>
+        </select>
+        <div style="font-size: 9px; color: #ef4444; margin-top: -10px; margin-bottom: 10px;">* Ctrl दबाकर मल्टीपल रोल चुनें</div>
+
+        <label>Mobile Number</label>
+        <input type="number" id="empMobile" oninput="if(this.value.length>10)this.value=this.value.slice(0,10)" placeholder="10 Digits">
+
+        <label>Set 4-Digit PIN</label>
+        <input type="password" id="empPIN" maxlength="4" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="****">
+
+        <button class="btn-submit" onclick="processData()">SAVE EMPLOYEE</button>
+        <button id="cancelEdit" style="display:none; width:100%; margin-top:10px; border:none; background:#e2e8f0; color:#475569; padding:12px; border-radius:10px;" onclick="resetForm()">Cancel Edit</button>
+    </div>
+
+    <div class="card">
+        <input type="text" id="searchInput" onkeyup="handleSearch()" placeholder="Search by Name or ID..." style="margin-bottom:15px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; width: 100%;">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th><th>Name</th><th>Roles</th><th>Mobile</th><th>Last Update</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allEmployees = [];
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser'));
+
+if(currentUser) {
+    document.getElementById('activeUserName').innerText = currentUser.name;
+    const roleDisplay = currentUser.roles ? currentUser.roles.join(', ') : currentUser.role;
+    document.getElementById('activeUserRole').innerText = roleDisplay;
+}
+
+// Function to add custom role to dropdown
+function addCustomRole() {
+    const input = document.getElementById('customRoleInput');
+    const roleVal = input.value.trim();
+    if(!roleVal) return;
+    
+    const roleSelect = document.getElementById('empRoles');
+    const exists = Array.from(roleSelect.options).some(opt => opt.value === roleVal);
+    
+    if(!exists) {
+        const newOpt = new Option(roleVal, roleVal);
+        newOpt.selected = true;
+        roleSelect.add(newOpt);
+        input.value = "";
+        Swal.fire({ icon: 'success', title: 'Added', text: 'Custom role list mein joda gaya', timer: 1000, showConfirmButton: false });
+    } else {
+        Swal.fire('Info', 'Ye role pehle se hai', 'info');
+    }
+}
+
+async function verifyAdmin() {
+    const { value: pin } = await Swal.fire({
+        title: 'Admin Verification',
+        html: `Confirm PIN for <b>${currentUser.name}</b>`,
+        input: 'password',
+        inputAttributes: { maxlength: 4, inputmode: 'numeric' },
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626'
+    });
+    return String(pin) === String(currentUser.pin);
+}
+
+async function processData() {
+    const name = document.getElementById('empName').value.trim();
+    const mobile = document.getElementById('empMobile').value.trim();
+    const pin = document.getElementById('empPIN').value.trim();
+    const editId = document.getElementById('editModeId').value;
+    const selectedRoles = Array.from(document.getElementById('empRoles').selectedOptions).map(opt => opt.value);
+
+    if (!name || mobile.length !== 10 || pin.length !== 4 || selectedRoles.length === 0) {
+        return Swal.fire('Error', 'सभी फील्ड भरें (10 अंक मोबाइल, 4 अंक PIN)', 'error');
+    }
+    if (selectedRoles.length > 3) return Swal.fire('Limit', 'अधिकतम 3 रोल चुन सकते हैं', 'warning');
+
+    const id = editId || "VK" + Math.floor(1000 + Math.random() * 9000);
+    const now = new Date().toLocaleString('en-GB');
+
+    const data = { employeeID: id, name, roles: selectedRoles, mobile: "+91 " + mobile, pin, lastPinUpdate: now };
+    
+    await db.ref('EmployeeAuthList/' + id).set(data);
+    Swal.fire('Success', 'डाटा सुरक्षित कर दिया गया है', 'success');
+    resetForm();
+}
+
+function loadData() {
+    db.ref('EmployeeAuthList').on('value', snap => {
+        allEmployees = [];
+        snap.forEach(c => { allEmployees.push(c.val()); });
+        renderTable(allEmployees.reverse());
+    });
+}
+
+function renderTable(data) {
+    const tbody = document.getElementById('dataTable');
+    tbody.innerHTML = data.map(emp => `
+        <tr>
+            <td data-label="ID" style="font-weight:800; color:var(--primary)">${emp.employeeID}</td>
+            <td data-label="Name"><b>${emp.name}</b></td>
+            <td data-label="Roles">
+                ${(emp.roles || [emp.role]).map(r => `<span style="background:#eef2ff; color:#4338ca; padding:2px 6px; border-radius:4px; font-size:10px; margin:2px; display:inline-block; font-weight:700;">${r}</span>`).join('')}
+            </td>
+            <td data-label="Mobile">${emp.mobile}</td>
+            <td data-label="Last Update" style="font-size:11px; color:#64748b;">${emp.lastPinUpdate || 'N/A'}</td>
+            <td data-label="Actions">
+                <div class="action-btns">
+                    <button class="act-btn" style="background:#eff6ff; color:var(--accent)" onclick="editEmp('${emp.employeeID}')"><i class="fas fa-edit"></i></button>
+                    <button class="act-btn" style="background:#fef2f2; color:var(--primary)" onclick="deleteEmp('${emp.employeeID}')"><i class="fas fa-trash"></i></button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function editEmp(id) {
+    if (await verifyAdmin()) {
+        const emp = allEmployees.find(e => e.employeeID === id);
+        document.getElementById('empName').value = emp.name;
+        document.getElementById('empMobile').value = emp.mobile.replace("+91 ","");
+        document.getElementById('empPIN').value = emp.pin;
+        document.getElementById('editModeId').value = id;
+        
+        const roleSelect = document.getElementById('empRoles');
+        const rolesToSelect = emp.roles || [emp.role];
+
+        // Ensure roles from database exist in dropdown (especially custom ones)
+        rolesToSelect.forEach(role => {
+            const exists = Array.from(roleSelect.options).some(opt => opt.value === role);
+            if (!exists) {
+                roleSelect.add(new Option(role, role));
+            }
+        });
+
+        Array.from(roleSelect.options).forEach(opt => {
+            opt.selected = rolesToSelect.includes(opt.value);
+        });
+
+        document.getElementById('formTitle').innerText = "Update Employee";
+        document.getElementById('cancelEdit').style.display = 'block';
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    } else {
+        Swal.fire('Denied', 'Incorrect Admin PIN', 'error');
+    }
+}
+
+async function deleteEmp(id) {
+    if (await verifyAdmin()) {
+        const res = await Swal.fire({ title: 'Delete?', text: "क्या आप इसे हटाना चाहते हैं?", icon: 'warning', showCancelButton: true });
+        if (res.isConfirmed) db.ref('EmployeeAuthList/' + id).remove();
+    }
+}
+
+function handleSearch() {
+    const t = document.getElementById('searchInput').value.toLowerCase();
+    const f = allEmployees.filter(e => e.name.toLowerCase().includes(t) || e.employeeID.toLowerCase().includes(t));
+    renderTable(f);
+}
+
+function resetForm() {
+    document.querySelectorAll('input').forEach(i => i.value="");
+    document.getElementById('empRoles').selectedIndex = -1;
+    document.getElementById('editModeId').value="";
+    document.getElementById('formTitle').innerText = "Employee Registration";
+    document.getElementById('cancelEdit').style.display='none';
+}
+
+window.onload = loadData;
+</script>
+</body>
+</html>

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Data Management | VSSY Pro</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        :root { 
+            --primary: #6366f1; --primary-dark: #4338ca; --accent: #f43f5e; 
+            --success: #10b981; --bg: #f8fafc; 
+            --gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: #1e293b; overflow-x: hidden; }
+        
+        .glass-header { background: var(--gradient); padding: 30px 20px; color: white; box-shadow: 0 10px 40px rgba(79, 70, 229, 0.2); }
+        .container { max-width: 1600px; margin: 0 auto; padding: 20px; }
+        
+        .card { background: #fff; border-radius: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); padding: 25px; margin-bottom: 25px; border: 1px solid #f1f5f9; }
+        .grid-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        
+        .form-group label { display: block; font-size: 11px; font-weight: 800; color: var(--primary); margin-bottom: 8px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 12px 15px; border: 2px solid #f1f5f9; border-radius: 12px; font-size: 14px; transition: 0.3s; box-sizing: border-box; }
+        
+        .btn { padding: 12px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; border: none; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; transition: 0.3s; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-main { background: var(--gradient); color: white; width: 100%; justify-content: center; }
+
+        .loader { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; color: white; }
+        .progress-box { background: white; padding: 40px; border-radius: 30px; text-align: center; min-width: 450px; color: #1e293b; }
+        .p-bar-container { width: 100%; background: #e2e8f0; height: 12px; border-radius: 20px; margin: 20px 0; overflow: hidden; }
+        .p-bar-fill { background: var(--gradient); height: 100%; width: 0%; transition: 0.2s; }
+
+        .table-container { overflow: auto; max-height: 65vh; border-radius: 20px 20px 0 0; border: 1px solid #f1f5f9; background: white; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; min-width: 6000px; }
+        th { background: #1e293b; color: #f1f5f9; padding: 15px; position: sticky; top: 0; z-index: 50; text-transform: uppercase; font-size: 10px; }
+        td { padding: 10px 15px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+        
+        .sticky-col-1 { position: sticky; left: 0; z-index: 41; background: white !important; border-right: 2px solid #e2e8f0; }
+        .sticky-col-2 { position: sticky; left: 45px; z-index: 41; background: #f8fafc !important; border-right: 2px solid #e2e8f0; }
+
+        #statsPanel { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        .stat-badge { background: white; padding: 12px 18px; border-radius: 15px; font-size: 12px; font-weight: 700; border-left: 5px solid var(--primary); box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: 0.3s; }
+        .stat-badge:hover { transform: translateY(-3px); }
+        .badge { padding: 4px 10px; border-radius: 6px; color: white; font-weight: 700; font-size: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="loader" id="loader">
+    <div class="progress-box">
+        <h2 id="progressTitle">Syncing Database</h2>
+        <div class="p-bar-container"><div class="p-bar-fill" id="pBar"></div></div>
+        <div id="progressCount" style="font-size: 28px; font-weight: 800; color: var(--primary);">0%</div>
+        <div id="progressDetail" style="margin-top: 15px; font-weight: 600; line-height: 1.6;">Preparing records...</div>
+    </div>
+</div>
+
+<div class="glass-header">
+    <div class="container">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <h1 style="margin:0; font-size:28px;">Master Data <span style="font-weight:300;">Management</span></h1>
+                <p style="margin:5px 0 0; opacity:0.8; font-size:13px;"><i class="fas fa-bolt"></i> VSSY High-Speed Sync Engine Pro</p>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-danger" onclick="deleteSelected()"><i class="fas fa-trash-alt"></i> Bulk Delete</button>
+                <button class="btn btn-success" onclick="exportToExcel()"><i class="fas fa-file-excel"></i> Export All</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <div class="grid-layout">
+            <div class="form-group">
+                <label>1. Select Target List</label>
+                <select id="listSelector" onchange="loadTable(this.value)"><option>Loading Lists...</option></select>
+            </div>
+            <div class="form-group">
+                <label>2. Search Anything</label>
+                <input type="text" id="globalSearch" placeholder="Name, App No, Aadhar..." oninput="filterAndReset()">
+            </div>
+            <div class="form-group">
+                <label>3. Trade Filter</label>
+                <select id="tradeFilter" onchange="filterAndReset()"><option value="">All Trades</option></select>
+            </div>
+            <div class="form-group">
+                <label>4. Upload Excel File</label>
+                <input type="file" id="excelUpload" accept=".xlsx, .xls">
+            </div>
+            <div class="form-group" style="display:flex; align-items:flex-end;">
+                <button class="btn btn-main" onclick="processExcel()"><i class="fas fa-sync"></i> START SMART SYNC</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="statsPanel"></div>
+
+    <div class="table-container">
+        <table id="mainTable">
+            <thead>
+                <tr>
+                    <th class="sticky-col-1"><input type="checkbox" onclick="toggleAll(this)"></th>
+                    <th class="sticky-col-2">SR</th>
+                    <th>District</th><th>App Number</th><th>Score</th><th>Sub Date</th><th>Aadhar</th>
+                    <th>Fin Year</th><th>Dept Fin Year</th><th>Trade Name</th><th>Status</th><th>Action Date</th>
+                    <th>Is Revert</th><th>Revert Date</th><th>Applicant Name</th><th>DOB</th><th>Father Name</th>
+                    <th>Mobile</th><th>Alt Mobile</th><th>Email</th><th>Category</th><th>Gender</th>
+                    <th>Marital</th><th>Spouse</th><th>Address</th><th>Bank</th><th>Branch</th><th>IFSC</th><th>Account</th>
+                    <th>Meet Time</th><th>Meet Place</th><th>Remark</th><th>Batch Time</th><th>Forward Date</th>
+                    <th>Training End</th><th>Cert Approved</th><th>Cert Dist</th><th>Toolkit Dist</th><th>Place</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="pagination-bar" style="background:white; padding:15px 25px; border-radius:0 0 24px 24px; display:flex; justify-content:space-between; align-items:center; border:1px solid #f1f5f9;">
+        <div>Showing <span id="rangeDisplay" style="font-weight:700;">0-0</span> of <span id="totalDisplay" style="font-weight:700;">0</span> records</div>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <button class="btn" id="prevBtn" onclick="changePage(-1)" style="background:#e2e8f0;"><i class="fas fa-chevron-left"></i></button>
+            <span id="pageInfo" style="font-weight:800;">Page 1</span>
+            <button class="btn" id="nextBtn" onclick="changePage(1)" style="background:#e2e8f0;"><i class="fas fa-chevron-right"></i></button>
+        </div>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let fullDataset = [], filteredDataset = [], currentPage = 1, rowsPerPage = 50, tradeColors = {};
+
+// UPDATE 1: Date Format - Excel format ko preserve karna (Original raw value prioritize karna)
+function fmtDate(val) {
+    if (!val || val === "-") return "-";
+    // Agar Excel se numeric date (serial number) aa rahi hai, tabhi convert karein
+    if (typeof val === 'number') {
+        let d = new Date((val - 25569) * 86400 * 1000);
+        if (isNaN(d.getTime())) return val;
+        return d.toLocaleDateString('en-GB').replace(/\//g, '-'); // Default formatted for display
+    }
+    return val; // Agar "15-02-2026" string format mein hai, to waisa hi bhej dega
+}
+
+function loadLists() {
+    db.ref('OverallListsMetadata').on('value', snap => {
+        const sel = document.getElementById('listSelector');
+        sel.innerHTML = '<option value="" selected disabled>-- Choose List --</option>';
+        snap.forEach(c => {
+            if (c.val().status !== "Hide It") {
+                sel.innerHTML += `<option value="${c.key}">${c.val().listName} (${c.val().status})</option>`;
+            }
+        });
+    });
+}
+
+function loadTable(listId) {
+    if(!listId) return;
+    Swal.fire({ title: 'Fetching Data...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    db.ref('FullDataEntries/' + listId).on('value', snap => {
+        fullDataset = []; const trades = new Set();
+        snap.forEach(c => {
+            let item = c.val(); item.id = c.key;
+            fullDataset.push(item);
+            if(item.tradeName) trades.add(item.tradeName);
+        });
+        const tf = document.getElementById('tradeFilter');
+        tf.innerHTML = '<option value="">All Trades</option>';
+        Array.from(trades).sort().forEach(t => tf.innerHTML += `<option value="${t}">${t}</option>`);
+        filterAndReset(); Swal.close();
+    });
+}
+
+function filterAndReset() { currentPage = 1; applyFilters(); }
+function applyFilters() {
+    const s = document.getElementById('globalSearch').value.toLowerCase();
+    const t = document.getElementById('tradeFilter').value;
+    filteredDataset = fullDataset.filter(d => {
+        const matchSearch = !s || Object.values(d).some(v => String(v).toLowerCase().includes(s));
+        const matchTrade = !t || d.tradeName === t;
+        return matchSearch && matchTrade;
+    });
+    renderTable();
+}
+
+function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    const panel = document.getElementById('statsPanel');
+    const listId = document.getElementById('listSelector').value;
+    tbody.innerHTML = '';
+    
+    const start = (currentPage - 1) * rowsPerPage;
+    const pageData = filteredDataset.slice(start, start + rowsPerPage);
+
+    const counts = {};
+    filteredDataset.forEach(d => { const tr = d.tradeName || "Unknown"; counts[tr] = (counts[tr] || 0) + 1; });
+    
+    let statsHTML = `<div class="stat-badge" style="background:var(--primary); color:white; border:none;">TOTAL MATCHED: ${filteredDataset.length}</div>`;
+    Object.keys(counts).sort().forEach(trade => {
+        statsHTML += `<div class="stat-badge" style="border-left: 5px solid ${getTradeColor(trade)}">${trade}: <span style="color:var(--primary); margin-left:5px;">${counts[trade]}</span></div>`;
+    });
+    panel.innerHTML = statsHTML;
+
+    pageData.forEach((d, i) => {
+        const tr = document.createElement('tr');
+        // ID ko data attribute mein store kar rahe bulk delete ke liye
+        tr.innerHTML = `
+            <td class="sticky-col-1"><input type="checkbox" class="row-check" data-id="${d.id}"></td>
+            <td class="sticky-col-2">${start + i + 1}</td>
+            <td>${d.districtName || '-'}</td><td><b>${d.applicationNumber}</b></td><td>${d.score || 0}</td>
+            <td>${d.onlineSubmissionDate || '-'}</td><td>${d.aadhar || '-'}</td>
+            <td>${d.financialYear || '-'}</td><td>${d.deptFinYear || '-'}</td>
+            <td><span class="badge" style="background:${getTradeColor(d.tradeName)}">${d.tradeName}</span></td>
+            <td>${d.currentStatus || '-'}</td><td>${d.actionDate || '-'}</td>
+            <td>${d.isRevert || '-'}</td><td>${d.revertDate || '-'}</td>
+            <td>${d.applicantName || '-'}</td><td>${d.dob || '-'}</td><td>${d.fatherName || '-'}</td>
+            <td>${d.mobile || '-'}</td><td>${d.alternateMobile || '-'}</td><td>${d.email || '-'}</td>
+            <td>${d.category || '-'}</td><td>${d.gender || '-'}</td>
+            <td>${d.maritalStatus || '-'}</td><td>${d.spouseName || '-'}</td><td>${d.permanentAddress || '-'}</td>
+            <td>${d.bankName || '-'}</td><td>${d.branchName || '-'}</td><td>${d.ifsc || '-'}</td>
+            <td>${d.bankAccountNumber || '-'}</td><td>${d.meetingTime || '-'}</td><td>${d.meetingPlace || '-'}</td>
+            <td>${d.remark || '-'}</td><td>${d.batchTime || '-'}</td><td>${d.forwardToInstDate || '-'}</td>
+            <td>${d.trainingCompleteDate || '-'}</td><td>${d.certificateApprovedDate || '-'}</td>
+            <td>${d.certificateDistributeDate || '-'}</td><td>${d.toolkitDistributeDate || '-'}</td>
+            <td>${d.place || '-'}</td>
+            <td><button class="btn" style="background:#fee2e2; color:#ef4444; padding:5px 10px;" onclick="deleteSingle('${listId}','${d.id}')"><i class="fas fa-trash"></i></button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+    document.getElementById('totalDisplay').innerText = filteredDataset.length;
+    document.getElementById('rangeDisplay').innerText = filteredDataset.length > 0 ? `${start + 1}-${Math.min(start + rowsPerPage, filteredDataset.length)}` : "0-0";
+    document.getElementById('pageInfo').innerText = `Page ${currentPage}`;
+}
+
+async function processExcel() {
+    const file = document.getElementById('excelUpload').files[0];
+    const listId = document.getElementById('listSelector').value;
+    if(!listId || !file) return Swal.fire('Error', 'Select List and Excel File!', 'error');
+
+    const loader = document.getElementById('loader');
+    loader.style.display = 'flex';
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {raw: true}); // Raw data true rakha hai formats ke liye
+        
+        let added = 0, updated = 0, skipped = 0, total = rows.length;
+
+        for(let i=0; i<total; i++) {
+            const r = rows[i];
+            const appNo = String(r.Application_Number || "");
+            if(!appNo) { skipped++; continue; }
+
+            const payload = {
+                districtName: r.District_Name || "", applicationNumber: appNo, score: r.score || "",
+                onlineSubmissionDate: fmtDate(r.Online_Submission_Date), aadhar: r.aadhar || "",
+                financialYear: r.financial_year || "", deptFinYear: r.dept_fin_year || "",
+                tradeName: r.Trade_Name || "", currentStatus: r.Current_Status || "In Progress",
+                actionDate: fmtDate(r.action_date), isRevert: r.is_revert || "", revertDate: fmtDate(r.revert_date),
+                applicantName: r.Applicant_Name || "", dob: fmtDate(r.Date_of_Birth), fatherName: r.Father_Name || "",
+                mobile: r.Mobile || "", alternateMobile: r.Alternate_Mobile || "", email: r.Email || "",
+                category: r.Category || "", gender: r.Gender || "", maritalStatus: r.Marital_Status || "",
+                spouseName: r.Spouse_Name || "", permanentAddress: r.Permanent_Address || "",
+                bankName: r.Bank_Name || "", branchName: r.Branch_Name || "", ifsc: r.IFSC || "",
+                bankAccountNumber: r.Bank_Account_Number || "", meetingTime: r.Meeting_Time || "",
+                meetingPlace: r.Meeting_Place || "", remark: r.Remark || "", batchTime: r.batch_time || "",
+                forwardToInstDate: fmtDate(r.forward_to_inst_date), trainingCompleteDate: fmtDate(r.training_complete_date),
+                certificateApprovedDate: fmtDate(r.Certificate_Approved_date), 
+                certificateDistributeDate: fmtDate(r.certificate_distribute_date),
+                toolkitDistributeDate: fmtDate(r.toolkit_distribute_date), place: r.place || ""
+            };
+
+            const existing = fullDataset.find(d => String(d.applicationNumber) === appNo);
+            if(existing) {
+                const isSame = Object.keys(payload).every(k => String(payload[k]) === String(existing[k] || ""));
+                if(!isSame) { await db.ref(`FullDataEntries/${listId}/${existing.id}`).update(payload); updated++; }
+                else { skipped++; }
+            } else {
+                await db.ref(`FullDataEntries/${listId}`).push(payload);
+                added++;
+            }
+
+            const pct = Math.round(((i + 1) / total) * 100);
+            document.getElementById('pBar').style.width = pct + '%';
+            document.getElementById('progressCount').innerText = pct + '%';
+            document.getElementById('progressDetail').innerHTML = `Processed: ${i+1}/${total}<br><span style="color:#10b981">● New: ${added}</span> | <span style="color:#6366f1">● Updated: ${updated}</span>`;
+        }
+        loader.style.display = 'none';
+        Swal.fire({ title: 'Sync Success!', icon: 'success' }).then(() => location.reload());
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// UPDATE 2: Bulk Delete Function with Confirmation
+async function deleteSelected() {
+    const listId = document.getElementById('listSelector').value;
+    const selectedCheckboxes = document.querySelectorAll('.row-check:checked');
+    
+    if (!listId) return Swal.fire('Error', 'Pehle list select karein!', 'error');
+    if (selectedCheckboxes.length === 0) return Swal.fire('Info', 'Delete karne ke liye rows select karein!', 'info');
+
+    const result = await Swal.fire({
+        title: 'Kya aap sure hain?',
+        text: `${selectedCheckboxes.length} records hamesha ke liye delete ho jayenge!`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Haan, Delete kar do!'
+    });
+
+    if (result.isConfirmed) {
+        Swal.fire({ title: 'Deleting...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        
+        for (let cb of selectedCheckboxes) {
+            const entryId = cb.getAttribute('data-id');
+            await db.ref(`FullDataEntries/${listId}/${entryId}`).remove();
+        }
+        
+        Swal.fire('Deleted!', 'Data successfully saaf kar diya gaya.', 'success').then(() => {
+            location.reload();
+        });
+    }
+}
+
+function getTradeColor(t) {
+    if(!t) return "#94a3b8";
+    if(!tradeColors[t]) tradeColors[t] = `hsl(${Math.abs([...t].reduce((a,c)=>c.charCodeAt(0)+((a<<5)-a),0))%360},65%,45%)`;
+    return tradeColors[t];
+}
+function changePage(step) { currentPage += step; renderTable(); document.querySelector('.table-container').scrollTop = 0; }
+function toggleAll(m) { document.querySelectorAll('.row-check').forEach(c => c.checked = m.checked); }
+function exportToExcel() {
+    const ws = XLSX.utils.json_to_sheet(filteredDataset);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Master_Data");
+    XLSX.writeFile(wb, "VSSY_Export.xlsx");
+}
+async function deleteSingle(listId, entryId) {
+    const res = await Swal.fire({ title: 'Delete?', text: "Wapas nahi aayega!", icon: 'warning', showCancelButton: true });
+    if(res.isConfirmed) { await db.ref(`FullDataEntries/${listId}/${entryId}`).remove(); location.reload(); }
+}
+window.onload = loadLists;
+</script>
+</body>
+</html>

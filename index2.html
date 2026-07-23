@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VKETC JHANSI | Official Portal</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #be123c; --dark: #0f172a; --gold: #fbbf24; --bg: #fff1f2; --success: #059669; }
+        * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; text-transform: uppercase; }
+        body { margin: 0; background: #f8fafc; color: var(--dark); overflow-x: hidden; }
+
+        /* PRELOADER */
+        #pageLoader { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #ffffff; z-index: 10000; display: flex; 
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Header */
+        .header { background: white; padding: 12px 5%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 15px rgba(0,0,0,0.1); position: sticky; top:0; z-index: 1000; }
+        .logo-box h1 { margin: 0; color: var(--primary); font-size: clamp(18px, 4vw, 24px); font-weight: 900; }
+        .login-btn { text-decoration:none; background:var(--primary); color:white; padding:8px 18px; border-radius:50px; font-size:11px; font-weight:800; transition: 0.3s; }
+        .login-btn:hover { background: var(--dark); }
+
+        /* SLIDER */
+        .slider-wrapper { width: 100%; height: 80vh; min-height: 450px; position: relative; overflow: hidden; background: #000; }
+        .slide { position: absolute; inset: 0; opacity: 0; transition: 1.2s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; justify-content: center; }
+        .slide.active { opacity: 1; }
+        .slide::before { content: ""; position: absolute; inset: 0; background-image: var(--bg-img); background-size: cover; background-position: center; opacity: 0.7; filter: blur(20px); z-index: 1; }
+        .slide img { width: 100%; height: 100%; object-fit: cover; position: relative; z-index: 1; }
+        .slide-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.15); color: white; border: none; width: 50px; height: 50px; cursor: pointer; z-index: 10; border-radius: 50%; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .prev-btn { left: 20px; } .next-btn { right: 20px; }
+        .slide-text { position: absolute; bottom: 60px; z-index: 5; color: white; text-align: center; width: 100%; padding: 0 20px; }
+        .slide-text h2 { font-size: clamp(20px, 5vw, 45px); font-weight: 900; margin: 0; animation: fadeInUp 1s; }
+
+        /* MODAL STYLES */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+            display: none; justify-content: center; align-items: center;
+            z-index: 2000; padding: 20px;
+        }
+        .modal-content {
+            background: white; width: 100%; max-width: 650px; max-height: 80vh;
+            border-radius: 20px; padding: 40px; position: relative;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            overflow-y: auto; text-transform: none; /* English text should be normal case */
+        }
+        .modal-content h2 { color: var(--primary); font-size: 24px; font-weight: 800; border-bottom: 2px solid #eee; padding-bottom: 15px; text-transform: uppercase; }
+        .modal-content p, .modal-content li { color: #334155; line-height: 1.6; font-size: 14px; margin-bottom: 15px; }
+        .close-modal { position: absolute; top: 20px; right: 25px; font-size: 30px; cursor: pointer; color: #94a3b8; }
+        .modal-link { font-size: 11px; color: var(--gold); cursor: pointer; text-decoration: none; margin: 0 15px; font-weight: 800; }
+
+        /* STATS */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; padding: 60px 5%; }
+        .s-card { background: #fff; padding: 30px; border-radius: 20px; text-align: center; border: 1px solid #f1f5f9; box-shadow: 0 10px 25px rgba(0,0,0,0.03); }
+        .s-card i { font-size: 35px; color: var(--primary); margin-bottom: 15px; }
+
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div id="pageLoader">
+    <div class="spinner"></div>
+    <p style="margin-top:15px; font-weight:800; color:var(--primary);">VKETC JHANSI IS LOADING...</p>
+</div>
+
+<header class="header">
+    <div class="logo-box">
+        <h1>VKETC JHANSI</h1>
+        <small style="font-weight: 800; color: #64748b; font-size: 9px;">GOVT. SKILL TRAINING CENTRE</small>
+    </div>
+    <a href="login.html" class="login-btn">PORTAL LOGIN</a>
+</header>
+
+<div class="slider-wrapper" id="mainSlider">
+    <button class="slide-nav prev-btn" onclick="moveSlide(-1)"><i class="fas fa-chevron-left"></i></button>
+    <button class="slide-nav next-btn" onclick="moveSlide(1)"><i class="fas fa-chevron-right"></i></button>
+</div>
+
+<section class="stats-grid">
+    <div class="s-card">
+        <i class="fas fa-tools"></i>
+        <p>ACTIVE SKILL TRADES</p>
+        <h3>13</h3>
+    </div>
+    <div class="s-card" style="border-top: 5px solid var(--success);">
+        <i class="fas fa-user-check" style="color:var(--success)"></i>
+        <p>TRAINING COMPLETED</p>
+        <h3 id="compCount">1450</h3>
+    </div>
+</section>
+
+<footer style="background: var(--dark); color: white; padding: 40px 5% 20px; text-align: center;">
+    <p style="margin:0; font-weight: 800; color: var(--gold);">UNIQUE THING BUILDER (UTB) BY AMAN SHRIVASTAV</p>
+    <div style="margin-top: 20px;">
+        <span class="modal-link" onclick="openModal('privacyModal')">PRIVACY POLICY</span>
+        <span class="modal-link" onclick="openModal('termsModal')">TERMS & CONDITIONS</span>
+    </div>
+</footer>
+
+<div id="privacyModal" class="modal-overlay">
+    <div class="modal-content animate__animated animate__zoomIn">
+        <span class="close-modal" onclick="closeModal('privacyModal')">&times;</span>
+        <h2>Privacy Policy</h2>
+        <p>At VKETC JHANSI, we are committed to protecting the personal information of our students and customers. This Privacy Policy describes how we collect, use, and safeguard the data you provide to us through our official portal. Your trust is our priority, and we ensure transparency in our data handling practices.</p>
+        
+        <p><strong>Identity Verification & Document Usage:</strong> We collect sensitive identification documents, including but not limited to <b>Aadhaar Card and PAN Card</b> details. We explicitly state that these documents and personal details are used <b>strictly for the purpose of identification and verification</b> within the training ecosystem. This is necessary to comply with government regulations and ensure that the skill training benefits reach the rightful individual.</p>
+        
+        <p><strong>Data Security:</strong> Your information is stored on secure, encrypted servers. We do not sell, trade, or otherwise transfer your personally identifiable information to outside parties. Access to this data is restricted to authorized personnel only, who are required to keep the information confidential. We implement a variety of security measures to maintain the safety of your personal information when you enter, submit, or access your details.</p>
+        
+        <p><strong>Consent:</strong> By using our portal and providing your documents, you consent to our privacy policy. We reserve the right to update this policy as per government norms. Continued use of the portal after any changes constitutes acceptance of those changes.</p>
+    </div>
+</div>
+
+<div id="termsModal" class="modal-overlay">
+    <div class="modal-content animate__animated animate__zoomIn">
+        <span class="close-modal" onclick="closeModal('termsModal')">&times;</span>
+        <h2>Terms & Conditions</h2>
+        <p>Welcome to the VKETC JHANSI Official Portal. By accessing this website, you are agreeing to be bound by these Terms and Conditions of Use, all applicable laws, and regulations. If you do not agree with any of these terms, you are prohibited from using or accessing this site.</p>
+        
+        <p><strong>User Responsibilities:</strong> Users are responsible for providing accurate and truthful information during registration. Any attempt to provide fraudulent documents, including fake Aadhaar or PAN details, will result in immediate disqualification and potential legal action. The portal is intended for educational and skill training purposes only; any misuse of the platform for unauthorized activities is strictly prohibited.</p>
+        
+        <p><strong>Document Submission:</strong> When you upload identification files, you acknowledge that you are the legal owner of those documents or have explicit permission to use them. VKETC JHANSI acts as a facilitator for government-backed training, and your data submission is a requirement for enrollment and certification processes.</p>
+        
+        <p><strong>Limitations:</strong> In no event shall VKETC JHANSI or its suppliers be liable for any damages arising out of the use or inability to use the materials on the portal. We reserve the right to terminate user access without notice if these terms are violated. These terms shall be governed by the laws of the State and the Government of India.</p>
+    </div>
+</div>
+
+<script>
+    const slider = document.getElementById('mainSlider');
+    const titles = ["SKILLING JHANSI", "VOCATIONAL EXCELLENCE", "TOT CERTIFIED STAFF", "GOVT. TRAINING HUB", "BRIGHT FUTURES", "MODERN LABS", "PRACTICAL SKILLS", "EMPOWERING YOUTH", "CAREER GROWTH", "VKETC JHANSI"];
+    
+    for(let i=1; i<=10; i++) {
+        const imgPath = `image/upload${i}.jpg`;
+        const div = document.createElement('div');
+        div.className = `slide ${i===1 ? 'active' : ''}`;
+        div.style.setProperty('--bg-img', `url(${imgPath})`);
+        div.innerHTML = `<img src="${imgPath}" onerror="this.src='https://via.placeholder.com/1200x600?text=VKETC+JHANSI+PHOTO+${i}'"><div class="slide-text"><h2>${titles[i-1]}</h2></div>`;
+        slider.appendChild(div);
+    }
+
+    let cur = 0;
+    const slides = document.querySelectorAll('.slide');
+    function updateSlide(index) {
+        slides[cur].classList.remove('active');
+        cur = (index + slides.length) % slides.length;
+        slides[cur].classList.add('active');
+    }
+    function moveSlide(step) { updateSlide(cur + step); }
+    setInterval(() => moveSlide(1), 5000);
+
+    // Modal Logic
+    function openModal(id) {
+        document.getElementById(id).style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+    window.onclick = function(e) { if (e.target.className === 'modal-overlay') { closeModal(e.target.id); } }
+
+    window.onload = () => {
+        document.getElementById('pageLoader').style.opacity = '0';
+        setTimeout(() => document.getElementById('pageLoader').style.display = 'none', 500);
+    };
+</script>
+
+</body>
+</html>

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Identity Control</title>
+    
+    <script>
+        (function() {
+            const activeUser = sessionStorage.getItem('activeUser');
+            if (!activeUser) {
+                window.location.href = "../login.html";
+            }
+        })();
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --accent: #4338ca; --success: #059669; --danger: #dc2626; --warning: #f59e0b; --bg: #f1f5f9; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: #1e293b; overflow-x: hidden; }
+
+        .glass-header { background: white; padding: 15px; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 1000; }
+        .container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 10px; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+        .stat-card { background: white; padding: 12px 5px; border-radius: 12px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-card span { display: block; font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; }
+        .stat-card b { font-size: 16px; color: var(--accent); }
+
+        .search-panel { background: white; border-radius: 16px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        .control-group { margin-bottom: 12px; }
+        label { display: block; font-size: 11px; font-weight: 800; margin-bottom: 5px; color: #475569; text-transform: uppercase; }
+        select, input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 14px; outline: none; background: #f8fafc; }
+        
+        .btn-search { background: var(--accent); color: white; border: none; padding: 14px; border-radius: 12px; width: 100%; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+        .candidate-card { 
+            position: relative; border-radius: 16px; padding: 15px; margin-bottom: 12px;
+            display: flex; flex-direction: column; gap: 10px; border: 1px solid rgba(0,0,0,0.05);
+            overflow: hidden; animation: fadeInUp 0.3s ease;
+        }
+        @keyframes fadeInUp { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+
+        .card-verified { background: #ecfdf5; border-left: 6px solid var(--success); }
+        .card-absent { background: #fff1f2; border-left: 6px solid var(--danger); }
+        .card-batch { background: #eef2ff; border-left: 6px solid var(--accent); }
+        .card-pending { background: white; border-left: 6px solid #94a3b8; }
+
+        .stamp-box {
+            position: absolute; width: 90px; height: 90px; border: 3px dashed; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; text-align: center;
+            font-size: 10px; font-weight: 900; transform: rotate(-15deg); 
+            top: 5px; right: 5px; opacity: 0.15; pointer-events: none; text-transform: uppercase;
+        }
+
+        .btn-action { padding: 10px; border-radius: 8px; border: none; font-weight: 700; width: 100%; cursor: pointer; font-size: 12px; margin-top: 5px; }
+        .btn-v { background: var(--accent); color: white; }
+        .btn-unv { background: #fff1f2; color: var(--danger); border: 1px solid #fecaca; }
+        .btn-dis { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+
+        .info-label { font-size: 11px; color: #64748b; line-height: 1.4; }
+        .info-val { color: #1e293b; font-weight: 600; }
+        .verify-badge { display: inline-block; background: rgba(5, 150, 105, 0.1); color: var(--success); padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; margin-top: 5px; }
+
+        .back-btn { background: none; border: none; color: var(--accent); font-size: 18px; cursor: pointer; margin-right: 10px; padding: 5px; }
+
+        @media (min-width: 768px) {
+            .candidate-card { flex-direction: row; justify-content: space-between; align-items: center; }
+            .action-btn-wrap { display: flex; flex-direction: column; gap: 5px; min-width: 160px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="glass-header">
+    <div class="container" style="padding:0; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display: flex; align-items: center;">
+            <button class="back-btn" onclick="window.history.back()"><i class="fas fa-arrow-left"></i></button>
+            <div>
+                <h2 style="margin:0; font-size:16px; font-weight:800; color:var(--accent);">SYNC IDENTITY</h2>
+                <div id="liveClock" style="font-size:10px; font-weight:600; color:#64748b;"></div>
+            </div>
+        </div>
+        <i class="fas fa-fingerprint" style="font-size: 20px; color: var(--accent);"></i>
+    </div>
+</div>
+
+<div class="container">
+    <div class="stats-grid">
+        <div class="stat-card"><span>Verified</span><b id="cntVerified">0</b></div>
+        <div class="stat-card"><span>Absent</span><b id="cntAbsent">0</b></div>
+        <div class="stat-card"><span>In Batches</span><b id="cntBatches">0</b></div>
+    </div>
+
+    <div class="search-panel">
+        <div class="control-group">
+            <label>Master List</label>
+            <select id="listSelect" onchange="syncTrainings()"><option value="">-- Choose Master List --</option></select>
+        </div>
+        <div class="control-group">
+            <label>Active Training</label>
+            <select id="trainingSelect" onchange="updateStats()"><option value="">-- Select Training First --</option></select>
+        </div>
+        <div class="control-group">
+            <label>Search Candidate</label>
+            <input type="text" id="searchInput" placeholder="Enter Name or App No. (Min 3 chars)">
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap: wrap; margin-bottom:12px;">
+            <label style="font-size:11px; display:flex; align-items:center; gap:5px;">
+                <input type="checkbox" id="incAbsent" style="width:15px; height:15px;"> Incl. Absent
+            </label>
+            <label style="font-size:11px; display:flex; align-items:center; gap:5px;">
+                <input type="checkbox" id="incVerified" style="width:15px; height:15px;"> Incl. Verified
+            </label>
+            <label style="font-size:11px; display:flex; align-items:center; gap:5px;">
+                <input type="checkbox" id="incBatches" style="width:15px; height:15px;"> Incl. In Batches
+            </label>
+        </div>
+        <button class="btn-search" onclick="searchCandidate()"><i class="fas fa-search"></i> FETCH DATA</button>
+    </div>
+
+    <div id="resultsArea"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allEnrolled = new Set();
+let fullDataLocal = [];
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser')) || { name: 'Unknown', role: 'Operator' };
+
+window.onload = () => {
+    setInterval(() => { document.getElementById('liveClock').innerText = new Date().toLocaleString('en-GB'); }, 1000);
+
+    db.ref('BatchEnrollments').on('value', s => {
+        allEnrolled.clear();
+        const data = s.val();
+        if(data) {
+            Object.values(data).forEach(batch => {
+                Object.keys(batch).forEach(app => allEnrolled.add(app.toUpperCase()));
+            });
+        }
+        updateStats();
+    });
+
+    db.ref('OverallListsMetadata').orderByChild('status').equalTo('In Progress').once('value', s => {
+        let h = '<option value="">-- Select Master List --</option>';
+        s.forEach(c => { h += `<option value="${c.key}">${c.val().listName}</option>`; });
+        document.getElementById('listSelect').innerHTML = h;
+    });
+};
+
+async function syncTrainings() {
+    const lid = document.getElementById('listSelect').value;
+    if(!lid) return;
+
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        let h = '<option value="">-- Select Active Training --</option>';
+        s.forEach(c => {
+            const t = c.val();
+            if(t.status === "In Progress") h += `<option value="${t.tradeName}">${t.trainingName}</option>`;
+        });
+        document.getElementById('trainingSelect').innerHTML = h;
+    });
+
+    Swal.fire({ title: 'Loading Data...', didOpen: () => Swal.showLoading() });
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    fullDataLocal = [];
+    snap.forEach(c => { fullDataLocal.push({...c.val(), dbKey: c.key}); });
+    Swal.close();
+    updateStats();
+}
+
+function updateStats() {
+    const selectedTrade = document.getElementById('trainingSelect').value;
+    let abs = 0, ver = 0, batchCount = 0;
+    
+    fullDataLocal.forEach(d => {
+        if(selectedTrade && d.tradeName !== selectedTrade) return;
+        const app = String(d.applicationNumber || "").toUpperCase();
+
+        if(d.isAbsent || d.status === "ABSENT") abs++;
+        if(d.isVerified && d.verifiedAadhar) ver++;
+        if(allEnrolled.has(app)) batchCount++;
+    });
+    
+    document.getElementById('cntAbsent').innerText = abs;
+    document.getElementById('cntVerified').innerText = ver;
+    document.getElementById('cntBatches').innerText = batchCount;
+}
+
+function searchCandidate() {
+    const query = document.getElementById('searchInput').value.trim().toUpperCase();
+    const trade = document.getElementById('trainingSelect').value;
+    const incA = document.getElementById('incAbsent').checked;
+    const incV = document.getElementById('incVerified').checked;
+    const incB = document.getElementById('incBatches').checked;
+
+    if(!trade) return Swal.fire('Info', 'Pehle Training Select Karein!', 'info');
+    if(query.length < 3) return Swal.fire('Info', 'Minimum 3 characters likhein!', 'info');
+
+    let h = '';
+    fullDataLocal.forEach(d => {
+        const app = String(d.applicationNumber || "").toUpperCase();
+        const name = String(d.applicantName || "").toUpperCase();
+        
+        const isA = d.isAbsent || d.status === "ABSENT";
+        const isV = d.isVerified && d.verifiedAadhar;
+        const isB = allEnrolled.has(app);
+
+        if((app.includes(query) || name.includes(query)) && d.tradeName === trade) {
+            if(isA && !incA) return;
+            if(isV && !incV && !isB) return;
+            if(isB && !incB) return;
+
+            let cardClass = isB ? 'card-batch' : (isV ? 'card-verified' : (isA ? 'card-absent' : 'card-pending'));
+            let stampText = isB ? "IN BATCH" : (isV ? "VERIFIED" : (isA ? "ABSENT" : ""));
+            let stampColor = isB ? "var(--accent)" : (isV ? "var(--success)" : "var(--danger)");
+            let stampHTML = stampText ? `<div class="stamp-box" style="color:${stampColor}; border-color:${stampColor}; opacity:0.2;">${stampText}</div>` : '';
+            
+            let maskedAadhar = "";
+            if(isV && d.verifiedAadhar) {
+                const a = d.verifiedAadhar;
+                maskedAadhar = `${a.substring(0,2)}XX XXXX X${a.slice(-3)}`;
+            }
+
+            h += `
+            <div class="candidate-card ${cardClass}">
+                ${stampHTML}
+                <div style="flex:1">
+                    <small style="font-weight:800; color:var(--accent)">APP: ${app}</small>
+                    <h3 style="margin:2px 0; font-size:16px;">${d.applicantName}</h3>
+                    <div class="info-label">
+                        <b>Father:</b> <span class="info-val">${d.fatherName || 'N/A'}</span><br>
+                        <b>DOB:</b> <span class="info-val">${d.dob || 'N/A'}</span> | <b>Mob:</b> <span class="info-val">${d.mobileNumber || 'N/A'}</span>
+                    </div>
+                    
+                    ${isV ? `
+                        <div class="verify-badge">
+                            <i class="fas fa-check-circle"></i> VERIFIED BY ${d.verifiedBy || 'N/A'}
+                        </div>
+                        <div style="font-size:10px; color:#64748b; margin-top:4px;">
+                            <i class="fas fa-calendar-alt"></i> ${d.verifiedDate || 'N/A'} | <i class="fas fa-id-card"></i> ${maskedAadhar}
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="action-btn-wrap">
+                    ${isA 
+                        ? `<button class="btn-action btn-dis" disabled><i class="fas fa-user-slash"></i> Absent</button>` 
+                        : `<button class="btn-action btn-v" onclick="verifyPop('${d.dbKey}','${d.applicantName}','${app}')">
+                            <i class="fas ${isV || isB ? 'fa-user-pen' : 'fa-check-double'}"></i> ${isV || isB ? 'Re-Verify' : 'Verify Now'}
+                           </button>`
+                    }
+                    ${isV && !isB ? `<button class="btn-action btn-unv" onclick="requestUnverify('${d.dbKey}','${d.applicantName}','${app}')"><i class="fas fa-undo"></i> Request Un-verify</button>` : ''}
+                </div>
+            </div>`;
+        }
+    });
+
+    document.getElementById('resultsArea').innerHTML = h || '<p style="text-align:center; padding:30px; color:#94a3b8;">No results found.</p>';
+}
+
+async function verifyPop(key, name, appNo) {
+    const lid = document.getElementById('listSelect').value;
+    const { value: aadhar } = await Swal.fire({
+        title: 'Verify Identity',
+        html: `<div style="font-weight:800; font-size:18px;">${name}</div><div style="font-size:12px; color:gray;">App: ${appNo}</div>`,
+        input: 'text',
+        inputPlaceholder: '12 digit Aadhar',
+        inputAttributes: { maxlength: 12 },
+        showCancelButton: true,
+        confirmButtonColor: '#4338ca',
+        inputValidator: (v) => { if(!v || v.length !== 12 || isNaN(v)) return 'Invalid Aadhar! 12 digits required.'; }
+    });
+
+    if(aadhar) {
+        Swal.showLoading();
+        const now = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        const updateData = { 
+            isVerified: true, 
+            verifiedAadhar: aadhar, 
+            verifiedDate: now,
+            verifiedBy: currentUser.name 
+        };
+
+        await db.ref(`FullDataEntries/${lid}/${key}`).update(updateData);
+        
+        const idx = fullDataLocal.findIndex(x => x.dbKey === key);
+        if(idx > -1) { Object.assign(fullDataLocal[idx], updateData); }
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Verified Successfully',
+            html: `
+                <div style="text-align:left; font-size:13px; background:#f8fafc; padding:15px; border-radius:10px; border:1px solid #e2e8f0; line-height:1.6;">
+                    <div style="margin-bottom:8px;"><b><i class="fas fa-user-tie" style="color:var(--accent)"></i> Verified By:</b> ${currentUser.name}</div>
+                    <div style="margin-bottom:8px;"><b><i class="fas fa-calendar-check" style="color:var(--accent)"></i> Date & Time:</b> ${now}</div>
+                    <hr style="border:0; border-top:1px solid #e2e8f0; margin:10px 0;">
+                    <div style="margin-bottom:5px;"><b>Candidate:</b> ${name}</div>
+                    <div style="margin-bottom:5px;"><b>App No:</b> ${appNo}</div>
+                    <div style="color:var(--success); font-weight:800; text-align:center; margin-top:10px; font-size:15px;">
+                        <i class="fas fa-check-double"></i> IDENTITY VALIDATED
+                    </div>
+                </div>
+            `,
+            confirmButtonColor: '#4338ca'
+        });
+        updateStats(); searchCandidate();
+    }
+}
+
+async function requestUnverify(key, name, appNo) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'Un-verify Request?',
+        text: `${name} (App: ${appNo}) ke liye un-verify request bhejein?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Send Request',
+        confirmButtonColor: '#dc2626'
+    });
+
+    if (isConfirmed) {
+        const now = new Date().toLocaleString('en-GB');
+        const lid = document.getElementById('listSelect').value;
+        
+        await db.ref(`UnverifyRequests`).push({
+            candidateKey: key,
+            candidateName: name,
+            applicationNumber: appNo,
+            listId: lid,
+            requestedBy: currentUser.name,
+            requestTime: now,
+            status: 'Pending'
+        });
+
+        Swal.fire('Sent!', 'Un-verify request MIS team ko bhej di gayi hai.', 'success');
+    }
+}
+</script>
+</body>
+</html>

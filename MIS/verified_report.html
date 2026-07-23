@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Verified Analytics</title>
+    
+    <script>
+        // Security: MIS Lead Access Only
+        (function() {
+            const activeUser = JSON.parse(sessionStorage.getItem('activeUser'));
+            if (!activeUser) { window.location.href = "login.html"; return; }
+            const roles = activeUser.roles || [activeUser.role];
+            if (!roles.some(r => String(r).toLowerCase() === 'mis lead')) {
+                alert("Access Denied!"); window.location.href = "login.html";
+            }
+        })();
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #0f172a; --accent: #4f46e5; --success: #059669; --warning: #f59e0b; --danger: #dc2626; --bg: #f8fafc; }
+        * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background: var(--bg); margin: 0; color: #1e293b; overflow-x: hidden; }
+
+        .header { background: white; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1000; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 15px; background: var(--primary); color: white; border-radius: 0 0 25px 25px; }
+        .stat-box { background: rgba(255,255,255,0.1); padding: 12px 5px; border-radius: 18px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-box b { display: block; font-size: 20px; font-weight: 800; }
+        .stat-box span { font-size: 9px; font-weight: 700; opacity: 0.8; text-transform: uppercase; }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 15px; }
+        .filter-card { background: white; border-radius: 24px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+
+        .preset-row { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none; }
+        .preset-btn { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 8px 15px; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: 0.3s; }
+        .preset-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        select, input { width: 100%; padding: 12px; border-radius: 12px; border: 1.5px solid #e2e8f0; font-size: 14px; outline: none; background: #fff; margin-bottom: 10px; }
+        
+        .report-item { background: white; border-radius: 20px; padding: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #f1f5f9; transition: 0.3s; }
+        .report-item:active { transform: scale(0.98); }
+        .info b { font-size: 16px; color: #0f172a; display: block; text-transform: uppercase; }
+        .info p { font-size: 12px; color: #64748b; margin: 4px 0; display: flex; align-items: center; gap: 8px; }
+        
+        .masked-id { background: #f1f5f9; padding: 2px 8px; border-radius: 6px; font-weight: 800; color: var(--accent); font-family: monospace; }
+        
+        .bio-btn { width: 45px; height: 45px; border-radius: 14px; border: none; cursor: pointer; font-size: 18px; }
+        .bio-Registered { background: #dcfce7; color: var(--success); }
+        .bio-Pending { background: #f1f5f9; color: #94a3b8; }
+        .bio-Issue { background: #fee2e2; color: var(--danger); }
+
+        .btn-search { background: var(--accent); color: white; border: none; padding: 14px; border-radius: 14px; font-weight: 800; cursor: pointer; width: 100%; margin-top: 5px; font-size: 14px; letter-spacing: 1px; }
+        
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 20px 0; }
+        .page-btn { background: white; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex; align-items:center; gap:10px;">
+        <button onclick="window.history.back()" style="border:none; background:none; cursor:pointer; font-size:18px;"><i class="fas fa-arrow-left"></i></button>
+        <h2 style="margin:0; font-size:15px; font-weight:800;">VERIFIED ANALYTICS</h2>
+    </div>
+    <button style="background:var(--success); color:white; border:none; padding:10px 18px; border-radius:10px; font-weight:700; cursor:pointer;" onclick="generateExcel()"><i class="fas fa-file-excel"></i> EXCEL</button>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-box"><b id="cntList">0</b><span>List Total</span></div>
+    <div class="stat-box"><b id="cntRange">0</b><span>Filtered</span></div>
+    <div class="stat-box"><b id="cntToday">0</b><span>Today</span></div>
+</div>
+
+<div class="container">
+    <div class="filter-card">
+        <div class="preset-row">
+            <div class="preset-btn active" onclick="setPreset('today', this)">Today</div>
+            <div class="preset-btn" onclick="setPreset('7days', this)">Last 7 Days</div>
+            <div class="preset-btn" onclick="setPreset('custom', this)">Custom Range</div>
+        </div>
+
+        <div id="customRangeBox" style="display:none; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;">
+            <input type="date" id="fromDate">
+            <input type="date" id="toDate">
+        </div>
+
+        <select id="listSelect" onchange="syncData()"><option value="">-- Choose List --</option></select>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <select id="tradeSelect"><option value="all">-- All Trades --</option></select>
+            <select id="verifierSelect"><option value="all">-- All Verifiers --</option></select>
+        </div>
+        
+        <input type="text" id="searchInput" placeholder="Search: Name, Father, Aadhaar or ID...">
+        <button class="btn-search" onclick="applyFilters(1)">SEARCH RECORDS</button>
+    </div>
+
+    <div id="reportList"></div>
+    <div id="paginationBox" class="pagination"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser'));
+
+let fullData = [];
+let filteredData = [];
+let currentPage = 1;
+const rowsPerPage = 10;
+
+window.onload = () => {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('fromDate').value = today;
+    document.getElementById('toDate').value = today;
+
+    db.ref('OverallListsMetadata').once('value', s => {
+        let h = '<option value="">-- Choose List --</option>';
+        s.forEach(c => { h += `<option value="${c.key}">${c.val().listName}</option>`; });
+        document.getElementById('listSelect').innerHTML = h;
+    });
+};
+
+function setPreset(type, btn) {
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const end = new Date();
+    let start = new Date();
+    document.getElementById('customRangeBox').style.display = (type === 'custom') ? 'grid' : 'none';
+    if(type === '7days') start.setDate(end.getDate() - 7);
+    document.getElementById('fromDate').value = start.toISOString().split('T')[0];
+    document.getElementById('toDate').value = end.toISOString().split('T')[0];
+}
+
+async function syncData() {
+    const lid = document.getElementById('listSelect').value;
+    if(!lid) return;
+
+    Swal.fire({ title: 'Downloading Data...', didOpen: () => Swal.showLoading() });
+    
+    // Load Trades
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        let h = '<option value="all">-- All Trades --</option>';
+        s.forEach(c => { h += `<option value="${c.val().tradeName}">${c.val().trainingName}</option>`; });
+        document.getElementById('tradeSelect').innerHTML = h;
+    });
+
+    // Load Entries
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    fullData = [];
+    let verifiers = new Set();
+    
+    snap.forEach(c => { 
+        const d = c.val();
+        if(d.isVerified) {
+            fullData.push({...d, dbKey: c.key}); 
+            if(d.verifiedBy) verifiers.add(d.verifiedBy);
+        }
+    });
+
+    // Load Verifiers Dropdown
+    let vH = '<option value="all">-- All Verifiers --</option>';
+    verifiers.forEach(v => { vH += `<option value="${v}">${v}</option>`; });
+    document.getElementById('verifierSelect').innerHTML = vH;
+
+    Swal.close();
+    applyFilters(1);
+}
+
+function applyFilters(page = 1) {
+    const trade = document.getElementById('tradeSelect').value;
+    const verifier = document.getElementById('verifierSelect').value;
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const fDate = new Date(document.getElementById('fromDate').value);
+    const tDate = new Date(document.getElementById('toDate').value);
+    fDate.setHours(0,0,0,0);
+    tDate.setHours(23,59,59,999);
+
+    const todayStr = new Date().toLocaleDateString('en-GB');
+    let cToday = 0;
+
+    filteredData = fullData.filter(d => {
+        const parts = (d.verifiedDate || "").split(',')[0].split('/');
+        const recDate = new Date(parts[2], parts[1]-1, parts[0]);
+        const recDateStr = parts.join('/');
+        
+        if(recDateStr === todayStr) cToday++;
+
+        const matchesTrade = (trade === 'all' || d.tradeName === trade);
+        const matchesVerifier = (verifier === 'all' || d.verifiedBy === verifier);
+        const matchesDate = (recDate >= fDate && recDate <= tDate);
+        const matchesSearch = !search || 
+            (d.applicantName || "").toLowerCase().includes(search) || 
+            (d.fatherName || "").toLowerCase().includes(search) ||
+            (d.verifiedAadhar || "").includes(search) ||
+            (d.applicationNumber || "").includes(search);
+
+        return matchesTrade && matchesVerifier && matchesDate && matchesSearch;
+    });
+
+    document.getElementById('cntList').innerText = fullData.length;
+    document.getElementById('cntRange').innerText = filteredData.length;
+    document.getElementById('cntToday').innerText = cToday;
+
+    renderList(page);
+}
+
+function renderList(page) {
+    currentPage = page;
+    const start = (page - 1) * rowsPerPage;
+    const end = start + rowsPerPage;
+    const items = filteredData.slice(start, end);
+    
+    let h = '';
+    items.forEach(d => {
+        const bStatus = d.biometricStatus || 'Pending';
+        const bIcon = bStatus === 'Registered' ? 'fa-check-double' : (bStatus === 'Issue' ? 'fa-exclamation-triangle' : 'fa-fingerprint');
+        const aadh = d.verifiedAadhar ? `xxxx-xxxx-${d.verifiedAadhar.slice(-4)}` : 'N/A';
+
+        h += `
+        <div class="report-item">
+            <div class="info">
+                <b>${d.applicantName}</b>
+                <p style="color:var(--accent); font-weight:700;">S/O: ${d.fatherName || 'N/A'}</p>
+                <p><i class="fas fa-id-card"></i> ID: <span class="masked-id">${String(d.applicationNumber || "").substring(6)}</span></p>
+                <p><i class="fas fa-fingerprint"></i> Aadhaar: ${aadh}</p>
+                <p style="font-size:10px; margin-top:5px; color:#94a3b8;">
+                   Verified By: ${d.verifiedBy || 'Admin'} | ${d.verifiedDate}
+                </p>
+            </div>
+            <div style="text-align:center;">
+                <button class="bio-btn bio-${bStatus}" onclick="updateBio('${d.dbKey}', '${d.applicantName}')">
+                    <i class="fas ${bIcon}"></i>
+                </button>
+                <div style="font-size:8px; font-weight:800; margin-top:5px;">${bStatus.toUpperCase()}</div>
+            </div>
+        </div>`;
+    });
+
+    document.getElementById('reportList').innerHTML = h || '<p style="text-align:center; padding:40px; color:#94a3b8;">No records found.</p>';
+    renderPagination();
+}
+
+function renderPagination() {
+    const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+    let h = '';
+    if(totalPages > 1) {
+        h += `<button class="page-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="applyFilters(${currentPage - 1})">Prev</button>`;
+        h += `<span style="font-weight:800; font-size:13px;">${currentPage} / ${totalPages}</span>`;
+        h += `<button class="page-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="applyFilters(${currentPage + 1})">Next</button>`;
+    }
+    document.getElementById('paginationBox').innerHTML = h;
+}
+
+async function updateBio(key, name) {
+    const { value: status } = await Swal.fire({
+        title: 'Update Biometric',
+        text: name,
+        input: 'select',
+        inputOptions: { 'Pending': 'Pending', 'Registered': 'Registered', 'Issue': 'Issue' },
+        showCancelButton: true,
+        confirmButtonColor: '#4f46e5'
+    });
+
+    if (status) {
+        const lid = document.getElementById('listSelect').value;
+        await db.ref(`FullDataEntries/${lid}/${key}`).update({
+            biometricStatus: status,
+            bioUpdatedBy: currentUser.name,
+            bioUpdateTime: new Date().toLocaleString('en-GB')
+        });
+        applyFilters(currentPage);
+    }
+}
+
+function generateExcel() {
+    if(filteredData.length === 0) return Swal.fire('No Data', 'Export karne ke liye results load karein.', 'info');
+    const ws = XLSX.utils.json_to_sheet(filteredData.map(d => ({
+        "Verification Date": d.verifiedDate,
+        "Candidate Name": d.applicantName,
+        "Father Name": d.fatherName,
+        "ID (Last 6)": String(d.applicationNumber).substring(6),
+        "Full Aadhaar": d.verifiedAadhar,
+        "Verified By": d.verifiedBy,
+        "Bio Status": d.biometricStatus || 'Pending'
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Verified_Report");
+    XLSX.writeFile(wb, `Report_${new Date().getTime()}.xlsx`);
+}
+</script>
+</body>
+</html>

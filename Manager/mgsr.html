@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Manager Terminal | VSSY Pro</title>
+    <script>
+        if (!sessionStorage.getItem('activeUser')) {
+            window.location.href = 'login.html';
+        }
+    </script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <style>
+        :root { --primary: #4f46e5; --dark: #0f172a; --bg: #f8fafc; }
+        body { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--dark); overflow-x: hidden; }
+
+        /* --- Minimal Header --- */
+        .header-pro { 
+            background: white; 
+            padding: 15px 20px; 
+            border-bottom: 1px solid #e2e8f0; 
+            position: sticky; 
+            top: 0; 
+            z-index: 1000;
+        }
+
+        .back-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        /* --- Professional Input Panel --- */
+        .input-hero {
+            background: white;
+            border-radius: 24px;
+            padding: 30px 20px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+            margin-top: 15px;
+            border: 1px solid #f1f5f9;
+        }
+
+        .app-input {
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            font-size: 1.3rem;
+            font-weight: 800;
+            text-align: center;
+            padding: 15px;
+            letter-spacing: 2px;
+            color: var(--primary);
+            background: #fcfcfd;
+        }
+        .app-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1); background: white; }
+
+        .btn-submit {
+            background: var(--primary);
+            color: white;
+            border-radius: 16px;
+            padding: 16px;
+            font-weight: 700;
+            width: 100%;
+            border: none;
+            margin-top: 15px;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        /* --- Pipeline List --- */
+        .data-card { 
+            background: white; 
+            border-radius: 20px; 
+            padding: 18px; 
+            margin-bottom: 12px; 
+            border: 1px solid #f1f5f9;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .status-tag {
+            font-size: 11px;
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-weight: 800;
+        }
+
+        .pg-btn {
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<header class="header-pro d-flex align-items-center">
+    <div class="back-circle me-3" onclick="history.back()">
+        <i class="fas fa-chevron-left"></i>
+    </div>
+    <div>
+        <h6 class="m-0 fw-bold" id="user_display">Manager</h6>
+        <span class="text-success" style="font-size: 10px;"><i class="fas fa-circle me-1"></i> Live Terminal</span>
+    </div>
+</header>
+
+<div class="container pb-5">
+    <div class="input-hero">
+        <label class="small text-muted fw-bold d-block mb-3 text-center">APPLICATION ENTRY</label>
+        <input type="number" id="app_no" class="form-control app-input" placeholder="00000000000000" oninput="if(this.value.length > 14) this.value = this.value.slice(0,14);">
+        <button class="btn-submit" onclick="submitToMIS()">
+            SEND TO PIPELINE <i class="fas fa-paper-plane ms-2"></i>
+        </button>
+    </div>
+
+    <div class="mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="fw-bold m-0 text-secondary">ACTIVE PIPELINE</h6>
+            <div class="d-flex align-items-center gap-2">
+                <div class="pg-btn" onclick="changePage(-1)"><i class="fas fa-angle-left"></i></div>
+                <span id="page_num" class="small fw-bold px-2">1</span>
+                <div class="pg-btn" onclick="changePage(1)"><i class="fas fa-angle-right"></i></div>
+            </div>
+        </div>
+
+        <div id="pipeline_list">
+            <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    firebase.initializeApp({ databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app" });
+    const db = firebase.database();
+    
+    let activeUser = JSON.parse(sessionStorage.getItem('activeUser'));
+    document.getElementById('user_display').innerText = activeUser.name;
+
+    let myLeads = [];
+    let currentPage = 1;
+    const itemsPerPage = 7;
+
+    async function submitToMIS() {
+        const id = document.getElementById('app_no').value.trim();
+        if(id.length !== 14) return Swal.fire('Error', 'Invalid ID', 'error');
+
+        await db.ref('vssy_pipeline/' + id).set({
+            app_id: id,
+            status: 'Processing...',
+            manager_name: activeUser.name,
+            timestamp: Date.now(),
+            request_time: new Date().toLocaleString('en-IN'),
+            is_synced: false,
+            payment_status: 'Unpaid'
+        });
+
+        document.getElementById('app_no').value = '';
+        
+        // Instant Feedback
+        const Toast = Swal.mixin({ toast: true, position: 'top', showConfirmButton: false, timer: 1500 });
+        Toast.fire({ icon: 'success', title: 'Data Sent' });
+
+        // Change to waiting after 1.5s
+        setTimeout(() => {
+            db.ref('vssy_pipeline/' + id).update({ status: 'Waiting' });
+        }, 1500);
+    }
+
+    db.ref('vssy_pipeline').on('value', snap => {
+        myLeads = [];
+        snap.forEach(child => {
+            const d = child.val();
+            if(d.manager_name === activeUser.name) {
+                myLeads.push({...d, id: child.key});
+            }
+        });
+        myLeads.sort((a, b) => b.timestamp - a.timestamp);
+        renderList();
+    });
+
+    function renderList() {
+        const listDiv = document.getElementById('pipeline_list');
+        listDiv.innerHTML = '';
+        
+        const start = (currentPage - 1) * itemsPerPage;
+        const pageData = myLeads.slice(start, start + itemsPerPage);
+
+        if(pageData.length === 0) {
+            listDiv.innerHTML = '<div class="text-center py-5 text-muted">No data found</div>';
+            return;
+        }
+
+        pageData.forEach(d => {
+            // FIX: If synced, show actual status from portal, else show Waiting/Processing
+            const displayStatus = d.is_synced ? (d.portal_status || d.status) : d.status;
+            
+            let statusColor = 'bg-light text-dark border';
+            if(d.is_synced) statusColor = 'bg-success text-white';
+            if(displayStatus === 'Processing...') statusColor = 'bg-info text-white';
+
+            listDiv.innerHTML += `
+                <div class="data-card">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <span class="d-block fw-bold text-primary mb-1" style="font-size: 14px;">#${d.id}</span>
+                            <h6 class="m-0 fw-bold">${d.applicant_name || 'Identifying...'}</h6>
+                        </div>
+                        <span class="status-tag ${statusColor}">${displayStatus}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                        <small class="text-muted"><i class="far fa-clock me-1"></i> ${d.request_time.split(',')[0]}</small>
+                        <small class="fw-bold" style="color:var(--primary)">View Details <i class="fas fa-chevron-right ms-1" style="font-size:8px"></i></small>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('page_num').innerText = currentPage;
+    }
+
+    function changePage(dir) {
+        const max = Math.ceil(myLeads.length / itemsPerPage);
+        if(currentPage + dir > 0 && currentPage + dir <= max) {
+            currentPage += dir;
+            renderList();
+        }
+    }
+</script>
+
+</body>
+</html>

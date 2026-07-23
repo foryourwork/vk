@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VKETC Secure Candidate Sync | V5</title>
+    
+    <script>
+        // --- SESSION SECURITY REDIRECT ---
+        (function() {
+            const user = JSON.parse(sessionStorage.getItem('activeUser'));
+            if (!user) { window.location.href = "login.html"; return; }
+        })();
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #be123c; --success: #059669; --bg: #f8fafc; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #fff1f2; margin: 0; color: #1e293b; }
+        
+        .header { background: white; padding: 15px 20px; border-bottom: 3px solid var(--primary); position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; }
+        .back-icon { font-size: 20px; color: var(--primary); cursor: pointer; transition: 0.3s; }
+        .back-icon:hover { transform: scale(1.2); }
+
+        .container { width: 100%; max-width: 850px; margin: 0 auto; padding: 15px; }
+        .card { background: white; border-radius: 24px; padding: 20px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #fee2e2; }
+        
+        label { font-size: 10px; font-weight: 800; color: var(--primary); text-transform: uppercase; display: block; margin: 10px 0 5px 5px; }
+        select, input { width: 100%; padding: 12px; border-radius: 12px; border: 2px solid #f1f5f9; font-weight: 700; outline: none; transition: 0.3s; }
+        
+        .btn-excel { background: #1e293b; color: white; width: 100%; padding: 15px; border-radius: 15px; border: none; font-weight: 800; cursor: pointer; margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+
+        .c-item { background: white; padding: 18px; border-radius: 20px; margin-bottom: 12px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+
+        #detailPanel { position: fixed; inset: 0; background: #f8fafc; z-index: 2000; display: none; overflow-y: auto; }
+        .panel-nav { background: white; padding: 15px 20px; display: flex; align-items: center; gap: 15px; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; }
+
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; background: white; padding: 20px; border-radius: 24px; margin-bottom: 20px; }
+        .info-cell label { color: #94a3b8; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+        .info-cell span { font-weight: 700; color: #1e293b; font-size: 14px; display: block; margin-top: 2px; }
+
+        .check-item { background: #fff1f2; padding: 15px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .log { font-size: 9px; color: var(--primary); font-weight: 800; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex; align-items:center;">
+        <i class="fas fa-chevron-left back-icon" onclick="window.history.back()"></i>
+        <div style="margin-left: 15px;">
+            <h2 style="margin:0; font-size:16px; font-weight:800;">VKETC SECURE ENGINE</h2>
+            <div id="uName" style="font-size:12px; color:#64748b;">Loading Session...</div>
+        </div>
+    </div>
+    <i class="fas fa-sign-out-alt" onclick="sessionStorage.clear(); location.reload();" style="color:var(--primary); cursor:pointer;"></i>
+</div>
+
+<div class="container">
+    <div class="card animate__animated animate__fadeInDown">
+        <label>Master List</label>
+        <select id="listSel" onchange="loadTrades()"></select>
+        
+        <label>Trade</label>
+        <select id="tradeSel" onchange="loadBatches()"></select>
+        
+        <label>Batch (In Progress Only)</label>
+        <select id="batchSel" onchange="loadCandidates(1)"></select>
+
+        <label>Live Candidate Search</label>
+        <input type="text" id="ajaxSearch" placeholder="Search by Name/App ID/Aadhar..." oninput="filterList()">
+
+        <button class="btn-excel" onclick="secureExcelDownload()"><i class="fas fa-file-excel"></i> EXCEL REPORT (WITH PIN)</button>
+    </div>
+
+    <div id="candidateArea"></div>
+    <div id="pgArea" style="display:flex; justify-content:center; gap:8px; margin-top:20px; padding-bottom:40px;"></div>
+</div>
+
+<div id="detailPanel">
+    <div class="panel-nav">
+        <i class="fas fa-times-circle" onclick="closePanel()" style="font-size:26px; color:var(--primary); cursor:pointer;"></i>
+        <h3 style="margin:0; font-size:16px; font-weight:800;">Candidate Identity Profile</h3>
+    </div>
+    <div class="container">
+        <div class="info-grid animate__animated animate__fadeInUp">
+            <div class="info-cell"><label>Candidate Name</label><span id="d_name">---</span></div>
+            <div class="info-cell"><label>Guardian Name</label><span id="d_father">---</span></div>
+            <div class="info-cell"><label>Aadhar Number</label><span id="d_aadhar" style="color:var(--primary)">---</span></div>
+            <div class="info-cell"><label>DOB (DD-MM-YYYY)</label><span id="d_dob">---</span></div>
+            <div class="info-cell"><label>Current Age</label><span id="d_age">---</span></div>
+            <div class="info-cell"><label>Mobile Number</label><span id="d_mobile">---</span></div>
+        </div>
+
+        <div class="info-grid animate__animated animate__fadeInUp" style="border-left: 5px solid var(--primary);">
+            <div class="info-cell"><label>Master List Name</label><span id="d_master">---</span></div>
+            <div class="info-cell"><label>Trade Name</label><span id="d_trade">---</span></div>
+            <div class="info-cell"><label>Batch Date Range</label><span id="d_batch_range" style="color:var(--primary)">---</span></div>
+            <div class="info-cell"><label>Verification Date/Time</label><span id="d_v_date">---</span></div>
+        </div>
+
+        <div class="info-grid animate__animated animate__fadeInUp">
+            <div class="info-cell"><label>Bank Name</label><span id="d_bank_name">---</span></div>
+            <div class="info-cell"><label>Account Number</label><span id="d_acc_no">---</span></div>
+            <div class="info-cell"><label>IFSC Code</label><span id="d_ifsc">---</span></div>
+            <div class="info-cell"><label>Branch Name</label><span id="d_branch">---</span></div>
+        </div>
+
+        <div id="checkArea" style="margin-top:20px;"></div>
+    </div>
+</div>
+
+<script>
+// --- INITIALIZE & CONFIG ---
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allCands = [], filteredCands = [], activeEmp = {};
+const size = 12;
+
+// --- UTILS ---
+function fmt(d) { // DD-MM-YYYY Format [cite: 2026-01-28]
+    if(!d || d === '---') return '---';
+    const date = new Date(d);
+    if(isNaN(date)) return d;
+    return date.toLocaleDateString('en-GB').replace(/\//g, '-');
+}
+
+function calcAge(dob) { // Age Logic [cite: 2026-01-23]
+    if(!dob) return 'N/A';
+    const birth = new Date(dob);
+    if(isNaN(birth)) return 'N/A';
+    return Math.abs(new Date(Date.now() - birth.getTime()).getUTCFullYear() - 1970) + " Years";
+}
+
+window.onload = () => {
+    activeEmp = JSON.parse(sessionStorage.getItem('activeUser'));
+    document.getElementById('uName').innerText = `Active Lead: ${activeEmp.name}`;
+
+    db.ref('OverallListsMetadata').once('value', s => {
+        const sel = document.getElementById('listSel');
+        sel.innerHTML = '<option value="">-- Select Master List --</option>';
+        s.forEach(c => { if(c.val().status !== 'Hide It') sel.innerHTML += `<option value="${c.key}">${c.val().listName}</option>`; });
+    });
+};
+
+function loadTrades() {
+    const lid = document.getElementById('listSel').value;
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        const sel = document.getElementById('tradeSel');
+        sel.innerHTML = '<option value="">-- Select Trade --</option>';
+        s.forEach(c => { sel.innerHTML += `<option value="${c.val().tradeName}">${c.val().trainingName}</option>`; });
+    });
+}
+
+function loadBatches() {
+    const trade = document.getElementById('tradeSel').value;
+    db.ref('Batches').once('value', s => {
+        const sel = document.getElementById('batchSel');
+        sel.innerHTML = '<option value="">-- Select Active Batch --</option>';
+        s.forEach(c => {
+            const b = c.val();
+            const status = b.status || b.batchStatus; // [cite: 2026-01-22]
+            if(b.trainingName === trade && status === 'In Progress') {
+                sel.innerHTML += `<option value="${c.key}">${b.batchName}</option>`;
+            }
+        });
+    });
+}
+
+async function loadCandidates(pg) {
+    const bid = document.getElementById('batchSel').value;
+    const lid = document.getElementById('listSel').value;
+    if(!bid || !lid) return;
+
+    Swal.fire({ title: 'Syncing...', didOpen: () => Swal.showLoading() });
+    const [enrollS, masterS] = await Promise.all([
+        db.ref(`BatchEnrollments/${bid}`).once('value'),
+        db.ref(`FullDataEntries/${lid}`).once('value')
+    ]);
+
+    allCands = [];
+    const enrolls = enrollS.val() || {};
+    const master = masterS.val() || {};
+    Object.keys(enrolls).forEach(app => {
+        const d = Object.values(master).find(x => String(x.applicationNumber) === String(app));
+        if(d) allCands.push(d);
+    });
+
+    filteredCands = [...allCands];
+    render(pg);
+    Swal.close();
+}
+
+function filterList() {
+    const q = document.getElementById('ajaxSearch').value.toLowerCase();
+    filteredCands = allCands.filter(c => 
+        c.applicantName.toLowerCase().includes(q) || 
+        String(c.applicationNumber).includes(q)
+    );
+    render(1);
+}
+
+function render(pg) {
+    const start = (pg - 1) * size;
+    const items = filteredCands.slice(start, start + size);
+    const area = document.getElementById('candidateArea');
+    area.innerHTML = items.map(c => `
+        <div class="c-item animate__animated animate__fadeInUp" onclick="openProfile('${c.applicationNumber}')">
+            <div>
+                <b>${c.applicantName}</b>
+                <div style="font-size:12px; color:#666;">F/H: ${c.fatherName} | Aadhar: ${c.verifiedAadhar || c.aadhar || 'Pending'}</div>
+            </div>
+            <i class="fas fa-arrow-right" style="color:#cbd5e1"></i>
+        </div>
+    `).join('');
+    
+    // Pagination
+    const total = Math.ceil(filteredCands.length / size);
+    let pgH = '';
+    for(let i=1; i<=total; i++) pgH += `<button onclick="render(${i})" style="padding:8px 12px; border-radius:8px; border:1px solid #ddd; background:${i===pg? '#be123c':'white'}; color:${i===pg?'white':'black'};">${i}</button>`;
+    document.getElementById('pgArea').innerHTML = pgH;
+}
+
+async function openProfile(app) {
+    const d = allCands.find(x => String(x.applicationNumber) === String(app));
+    const bid = document.getElementById('batchSel').value;
+    const bSnap = await db.ref(`Batches/${bid}`).once('value');
+    const b = bSnap.val();
+
+    // Fill Details
+    document.getElementById('d_name').innerText = d.applicantName.toUpperCase();
+    document.getElementById('d_father').innerText = (d.fatherName || '---').toUpperCase();
+    document.getElementById('d_aadhar').innerText = d.verifiedAadhar || d.aadhar || 'PENDING';
+    document.getElementById('d_dob').innerText = fmt(d.dob || d.onlineSubmissionDate);
+    document.getElementById('d_age').innerText = calcAge(d.dob || d.onlineSubmissionDate);
+    document.getElementById('d_mobile').innerText = d.mobile || '---';
+
+    document.getElementById('d_master').innerText = document.getElementById('listSel').options[document.getElementById('listSel').selectedIndex].text;
+    document.getElementById('d_trade').innerText = b.trainingName;
+    document.getElementById('d_batch_range').innerText = `${fmt(b.startDate)} TO ${fmt(b.endDate)}`;
+    document.getElementById('d_v_date').innerText = d.verifiedDate || 'Not Verified';
+
+    // Account Details Segregation
+    document.getElementById('d_bank_name').innerText = d.bankName || '---';
+    document.getElementById('d_acc_no').innerText = d.bankAccountNumber || d.accountNumber || '---';
+    document.getElementById('d_ifsc').innerText = d.ifsc || d.ifscCode || '---';
+    document.getElementById('d_branch').innerText = d.branchName || '---';
+
+    // Checklist Logic
+    const checks = ["Aadhar Copy", "Passbook Copy", "Photo", "Mudra Form", "Feedback", "Affidavit", "Stamp", "File"];
+    const savedS = await db.ref(`CandidateChecklist/${bid}/${app}`).once('value');
+    const saved = savedS.val() || {};
+
+    document.getElementById('checkArea').innerHTML = checks.map(item => {
+        const key = item.replace(/\s+/g, '');
+        return `
+            <div class="check-item">
+                <div><label>${item}</label><div class="log">${saved[key+'_log'] || 'Never updated'}</div></div>
+                <select onchange="updateCheck('${app}','${key}',this.value)" style="width:80px; padding:5px; font-size:12px;">
+                    <option value="">--</option>
+                    <option value="Yes" ${saved[key]==='Yes'?'selected':''}>Yes</option>
+                    <option value="No" ${saved[key]==='No'?'selected':''}>No</option>
+                </select>
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('detailPanel').style.display = 'block';
+}
+
+async function updateCheck(app, key, val) {
+    const { value: pin } = await Swal.fire({ title: 'Authorization', text: 'Enter LOGIN PIN', input: 'password', showCancelButton: true });
+    if(pin === String(activeEmp.pin)) { //
+        const bid = document.getElementById('batchSel').value;
+        const log = `${activeEmp.name} @ ${new Date().toLocaleString('en-IN')}`;
+        const up = {}; up[key] = val; up[key+'_log'] = log;
+        await db.ref(`CandidateChecklist/${bid}/${app}`).update(up);
+        Swal.fire({ toast:true, position:'top', icon:'success', title:'Saved', showConfirmButton:false, timer:1000 });
+    } else if(pin) Swal.fire('Error', 'PIN Wrong!', 'error');
+}
+
+async function secureExcelDownload() {
+    const { value: pin } = await Swal.fire({ title: 'Secure Access', text: 'Enter LOGIN PIN for Excel', input: 'password', showCancelButton: true });
+    if(pin !== String(activeEmp.pin)) return pin && Swal.fire('Error', 'PIN Wrong!', 'error');
+
+    Swal.fire({ title: 'Generating Master Report...', didOpen: () => Swal.showLoading() });
+    const bid = document.getElementById('batchSel').value;
+    const checkSnap = await db.ref(`CandidateChecklist/${bid}`).once('value');
+    const allChecks = checkSnap.val() || {};
+
+    const data = filteredCands.map((c, i) => {
+        const ch = allChecks[String(c.applicationNumber)] || {};
+        return {
+            'Sr.No': i + 1,
+            'Candidate Name': c.applicantName,
+            'App ID': c.applicationNumber,
+            'DOB': fmt(c.dob),
+            'Aadhar': c.verifiedAadhar || c.aadhar,
+            'Mobile': c.mobile,
+            'Bank Name': c.bankName,
+            'Account No': c.bankAccountNumber || c.accountNumber,
+            'IFSC': c.ifsc || c.ifscCode,
+            'Aadhar Copy': ch['AadharCopy'] || 'No',
+            'Passbook Copy': ch['PassbookCopy'] || 'No',
+            'Photo': ch['Photo'] || 'No',
+            'Verification Info': ch['AadharCopy_log'] || '--'
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "MasterReport");
+    XLSX.writeFile(wb, `VKETC_Report_${bid}.xlsx`);
+    Swal.close();
+}
+
+function closePanel() { document.getElementById('detailPanel').style.display = 'none'; }
+</script>
+</body>
+</html>

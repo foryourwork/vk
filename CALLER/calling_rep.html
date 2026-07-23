@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Pro | Caller Analytics</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #4338ca; --bg: #f8fafc; --white: #ffffff; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: #1e293b; }
+        
+        .header { background: white; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 15px; position: sticky; top: 0; z-index: 100; }
+        .back-btn { background: #f1f5f9; border: none; padding: 10px; border-radius: 8px; cursor: pointer; }
+        
+        .container { padding: 15px; max-width: 1000px; margin: 0 auto; }
+
+        /* Stats */
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 15px; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .stat-card i { font-size: 1.2rem; color: var(--primary); margin-bottom: 5px; }
+        .stat-card b { font-size: 1.4rem; display: block; }
+        .stat-card span { font-size: 0.65rem; color: #64748b; font-weight: 700; text-transform: uppercase; }
+
+        /* Search & Filters */
+        .search-box { margin-bottom: 15px; position: relative; }
+        .search-box i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+        .search-box input { width: 100%; padding: 12px 12px 12px 40px; border-radius: 12px; border: 1.5px solid #e2e8f0; background: white; box-sizing: border-box; font-family: inherit; }
+        .search-box input:focus { border-color: var(--primary); outline: none; }
+
+        .filter-panel { background: white; padding: 15px; border-radius: 20px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
+        .filter-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        @media (min-width: 600px) { .filter-grid { grid-template-columns: repeat(3, 1fr); } }
+        
+        .filter-item label { font-size: 0.75rem; font-weight: 800; color: #64748b; margin-bottom: 5px; display: block; }
+        select, input[type="date"] { width: 100%; padding: 10px; border-radius: 10px; border: 1.5px solid #f1f5f9; background: #f8fafc; font-family: inherit; }
+
+        /* Table */
+        .table-container { background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 450px; }
+        th { background: #f8fafc; padding: 12px; text-align: left; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        
+        .status-badge { padding: 4px 8px; border-radius: 6px; font-size: 0.65rem; font-weight: 800; }
+        .bg-success { background: #dcfce7; color: #166534; }
+
+        /* Pagination */
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px; padding-bottom: 40px; }
+        .page-btn { padding: 8px 16px; border: 1px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-weight: 700; color: var(--primary); }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        #pageInfo { font-size: 0.85rem; font-weight: 700; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <button class="back-btn" onclick="window.history.back()"><i class="fas fa-arrow-left"></i></button>
+    <h2 style="font-size: 1rem; font-weight: 800; color: var(--primary); margin: 0;">CALLER ANALYTICS</h2>
+</div>
+
+<div class="container">
+    <div class="stats-row">
+        <div class="stat-card">
+            <i class="fas fa-phone-alt"></i>
+            <b id="totalCount">0</b>
+            <span>Total (Today)</span>
+        </div>
+        <div class="stat-card">
+            <i class="fas fa-check-circle"></i>
+            <b id="filteredCount">0</b>
+            <span>Filtered</span>
+        </div>
+    </div>
+
+    <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="Search name or mobile..." oninput="applyFilters()">
+    </div>
+
+    <div class="filter-panel">
+        <div class="filter-grid">
+            <div class="filter-item">
+                <label>Date</label>
+                <input type="date" id="dateFilter" onchange="applyFilters()">
+            </div>
+            <div class="filter-item">
+                <label>Active Campaign</label>
+                <select id="listFilter" onchange="loadTrades(this.value)">
+                    <option value="">Select Campaign</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label>Trade</label>
+                <select id="tradeFilter" onchange="applyFilters()">
+                    <option value="">All Trades</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table id="reportTable">
+            <thead>
+                <tr>
+                    <th>Candidate</th>
+                    <th>Trade & Status</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="3" style="text-align:center; padding:40px; color:#94a3b8;">Select a campaign to begin...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="pagination">
+        <button class="page-btn" id="prevBtn" onclick="changePage(-1)">Prev</button>
+        <span id="pageInfo">Page 1 of 1</span>
+        <button class="page-btn" id="nextBtn" onclick="changePage(1)">Next</button>
+    </div>
+</div>
+
+<script>
+// Firebase Config
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Session Data
+const userData = JSON.parse(sessionStorage.getItem('activeUser'));
+const activeCaller = userData ? userData.name : "Employee";
+
+let masterData = [];
+let filteredData = [];
+let currentPage = 1;
+const rowsPerPage = 10;
+
+window.onload = async () => {
+    // 1. Set Default Date
+    const today = new Date();
+    document.getElementById('dateFilter').value = today.toISOString().split('T')[0];
+
+    // 2. Load "In Progress" Campaigns Only
+    db.ref('OverallListsMetadata').once('value', s => {
+        let h = '<option value="">Select Campaign</option>';
+        s.forEach(c => {
+            const list = c.val();
+            // फ़िल्टर: सिर्फ वही जो "In Progress" हैं
+            if(list.status === "In Progress") {
+                h += `<option value="${c.key}">${list.listName}</option>`;
+            }
+        });
+        document.getElementById('listFilter').innerHTML = h;
+    });
+
+    // 3. Stats for Today
+    const dateStr = today.toLocaleDateString('en-GB').replace(/\//g, '-');
+    db.ref(`MyStats/${activeCaller}/${dateStr}`).on('value', s => {
+        document.getElementById('totalCount').innerText = s.val() || 0;
+    });
+};
+
+async function loadTrades(lid) {
+    if(!lid) {
+        masterData = [];
+        applyFilters();
+        return;
+    }
+
+    // Load Trade Dropdown
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        let h = '<option value="">All Trades</option>';
+        s.forEach(c => { h += `<option value="${c.val().tradeName}">${c.val().tradeName}</option>`; });
+        document.getElementById('tradeFilter').innerHTML = h;
+    });
+
+    // Fetch Table Data
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    masterData = [];
+    snap.forEach(c => {
+        const d = c.val();
+        if(d.lastAgent === activeCaller) masterData.push(d);
+    });
+    applyFilters();
+}
+
+function applyFilters() {
+    const trade = document.getElementById('tradeFilter').value;
+    const dateVal = document.getElementById('dateFilter').value;
+    const search = document.getElementById('searchInput').value.toLowerCase();
+
+    filteredData = masterData.filter(d => {
+        let dateMatch = true;
+        if(dateVal) {
+            const dObj = new Date(dateVal);
+            const formattedDate = dObj.toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+            dateMatch = d.lastCallTime && d.lastCallTime.includes(formattedDate);
+        }
+
+        const tradeMatch = !trade || d.tradeName === trade;
+        const searchMatch = !search || 
+            (d.applicantName && d.applicantName.toLowerCase().includes(search)) || 
+            (d.mobile && d.mobile.includes(search));
+
+        return dateMatch && tradeMatch && searchMatch;
+    });
+
+    currentPage = 1;
+    renderTable();
+}
+
+function renderTable() {
+    document.getElementById('filteredCount').innerText = filteredData.length;
+    
+    const start = (currentPage - 1) * rowsPerPage;
+    const end = start + rowsPerPage;
+    const items = filteredData.slice(start, end);
+
+    let h = '';
+    items.forEach(d => {
+        h += `<tr>
+            <td><b>${d.applicantName}</b><br><small style="color:var(--primary)">${d.mobile}</small></td>
+            <td><small>${d.tradeName}</small><br><span class="status-badge bg-success">${d.lastCallStatus}</span></td>
+            <td><small>${d.lastCallTime}</small></td>
+        </tr>`;
+    });
+
+    document.getElementById('tableBody').innerHTML = h || '<tr><td colspan="3" style="text-align:center; padding:30px;">No results found.</td></tr>';
+    updatePagination();
+}
+
+function updatePagination() {
+    const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+    document.getElementById('pageInfo').innerText = `Page ${currentPage} of ${totalPages}`;
+    document.getElementById('prevBtn').disabled = currentPage === 1;
+    document.getElementById('nextBtn').disabled = currentPage === totalPages;
+}
+
+function changePage(step) {
+    currentPage += step;
+    renderTable();
+}
+</script>
+</body>
+</html>

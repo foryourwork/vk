@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VKETC | MIS Audit Pro</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { 
+            --primary-grad: linear-gradient(135deg, #be123c 0%, #e11d48 100%);
+            --dark-grad: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            --card-shadow: 0 10px 30px -5px rgba(0,0,0,0.1);
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; margin: 0; padding-bottom: 50px; }
+
+        /* Header & Navigation */
+        .header { 
+            background: white; padding: 15px 25px; display: flex; align-items: center; 
+            justify-content: space-between; position: sticky; top: 0; z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .back-btn { 
+            width: 35px; height: 35px; background: #fff1f2; color: #be123c; 
+            border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+
+        /* Summary Dashboard */
+        .summary-box {
+            max-width: 800px; margin: 20px auto; padding: 20px;
+            background: var(--primary-grad); border-radius: 24px; color: white;
+            box-shadow: var(--card-shadow); display: flex; align-items: center; gap: 20px;
+        }
+
+        /* Main Profile Layout */
+        .main-content { max-width: 800px; margin: 0 auto; padding: 0 20px; }
+        .glass-card { 
+            background: white; border-radius: 24px; padding: 25px; 
+            box-shadow: var(--card-shadow); margin-bottom: 25px; border: 1px solid #f1f5f9;
+        }
+
+        /* Data Display */
+        .data-row {
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px;
+            padding: 15px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .label { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+        .value { font-size: 14px; font-weight: 700; color: #0f172a; }
+
+        /* Buttons */
+        .btn-main {
+            background: var(--primary-grad); color: white; border: none; padding: 14px;
+            border-radius: 14px; font-weight: 800; cursor: pointer; width: 100%;
+            box-shadow: 0 8px 15px rgba(190, 18, 60, 0.2); transition: 0.3s;
+        }
+        .btn-dark { background: var(--dark-grad); box-shadow: 0 8px 15px rgba(15, 23, 42, 0.2); }
+        
+        .status-tag { padding: 5px 12px; border-radius: 100px; font-size: 10px; font-weight: 800; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="back-btn" onclick="window.history.back()"><i class="fas fa-arrow-left"></i></div>
+    <div style="font-weight: 900; font-size: 18px; color: #0f172a;">MIS AUDIT <span style="color:#be123c">PRO</span></div>
+    <div style="width:35px"></div>
+</div>
+
+<div class="summary-box">
+    <i class="fas fa-file-invoice-dollar fa-2x"></i>
+    <div>
+        <div style="font-size: 24px; font-weight: 800;" id="todayCount">00</div>
+        <div style="font-size: 11px; font-weight: 600; opacity: 0.8; text-transform: uppercase;">Corrected Records Today</div>
+    </div>
+</div>
+
+<div class="main-content">
+    <div class="glass-card">
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-bottom: 15px;">
+            <select id="searchType" style="padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; font-weight: 700;">
+                <option value="aadhar">AADHAAR</option>
+                <option value="app">APPLICATION</option>
+                <option value="mobile">MOBILE</option>
+            </select>
+            <input type="text" id="queryInp" placeholder="Enter number..." style="padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0;">
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-main" onclick="fetchProfile()"><i class="fas fa-search"></i> FETCH DATA</button>
+            <button class="btn-main btn-dark" onclick="openExportModal()"><i class="fas fa-file-excel"></i> EXCEL REPORT</button>
+        </div>
+    </div>
+
+    <div id="profileView" style="display: none;">
+        <div class="glass-card animate__animated animate__fadeIn">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                <div>
+                    <h1 id="d_name" style="margin:0; font-size: 26px; font-weight: 900;">---</h1>
+                    <div id="d_trade" style="font-size: 12px; color: #64748b; font-weight: 700;">---</div>
+                </div>
+                <div id="d_status" class="status-tag">PENDING</div>
+            </div>
+
+            <div class="data-row">
+                <div><div class="label">Aadhaar Card</div><div id="v_aadhar" class="value">---</div></div>
+                <i class="fas fa-edit" style="color:#be123c; cursor:pointer;" onclick="triggerEdit('aadhar')"></i>
+            </div>
+            
+            <div class="data-row">
+                <div><div class="label">Mobile Number</div><div id="v_mobile" class="value">---</div></div>
+                <i class="fas fa-edit" style="color:#be123c; cursor:pointer;" onclick="triggerEdit('mobile')"></i>
+            </div>
+
+            <div style="background: #fff1f2; border: 1px dashed #be123c; padding: 15px; border-radius: 16px; margin-top: 20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span class="label" style="color:#be123c">Bank Details</span>
+                    <button onclick="triggerBankEdit()" style="background:#be123c; border:none; color:white; padding:5px 10px; border-radius:8px; font-size:10px; font-weight:800; cursor:pointer;">UPDATE BANK</button>
+                </div>
+                <div id="v_bank" class="value" style="font-size:16px;">BANK NAME</div>
+                <div id="v_acc" class="value" style="color:#64748b; margin-top:5px;">000000000000</div>
+                <div id="v_ifsc" class="value" style="font-size:12px; color:#be123c; margin-top:5px;">IFSC: ---</div>
+            </div>
+
+            <div style="margin-top: 25px;">
+                <div class="label" style="margin-bottom:10px;">Audit Logs</div>
+                <div id="logList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Firebase Initialisation
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+let currentCandidate = null;
+
+// Dashboard Update
+async function refreshDashboard() {
+    const today = new Date().toLocaleDateString();
+    let count = 0;
+    const snap = await db.ref('FullDataEntries').once('value');
+    snap.forEach(l => {
+        l.forEach(c => { if(c.val().lastEditedAt && c.val().lastEditedAt.includes(today)) count++; });
+    });
+    document.getElementById('todayCount').innerText = count.toString().padStart(2, '0');
+}
+refreshDashboard();
+
+// Fetch Profile
+async function fetchProfile() {
+    const type = document.getElementById('searchType').value;
+    const query = document.getElementById('queryInp').value.trim();
+    if(!query) return;
+
+    Swal.fire({ title: 'Searching...', didOpen: () => Swal.showLoading() });
+    let found = null;
+    const snap = await db.ref('FullDataEntries').once('value');
+    snap.forEach(list => {
+        list.forEach(c => {
+            const v = c.val();
+            const hit = (type==='aadhar' && (v.verifiedAadhar===query || v.aadhar===query)) || 
+                        (type==='mobile' && (v.mobile===query || v.mobileNumber===query)) ||
+                        (type==='app' && String(v.applicationNumber)===query);
+            if(hit) { found = { ...v, _key: c.key, _listId: list.key }; return true; }
+        });
+        if(found) return true;
+    });
+
+    if(found) { currentCandidate = found; renderUI(); Swal.close(); }
+    else { Swal.fire('Error', 'No record found', 'error'); }
+}
+
+function renderUI() {
+    const d = currentCandidate;
+    document.getElementById('d_name').innerText = d.applicantName.toUpperCase();
+    document.getElementById('d_trade').innerText = (d.tradeName || 'N/A').toUpperCase();
+    const st = (d.status || d.attendanceStatus || 'PENDING').toUpperCase();
+    const b = document.getElementById('d_status');
+    b.innerText = d.isUpdated ? `CORRECTED (${st})` : st;
+    b.style.background = st === 'VERIFIED' ? '#dcfce7' : (st === 'ABSENT' ? '#fee2e2' : '#fef3c7');
+    b.style.color = st === 'VERIFIED' ? '#166534' : (st === 'ABSENT' ? '#991b1b' : '#92400e');
+    document.getElementById('v_aadhar').innerText = d.verifiedAadhar || d.aadhar || "---";
+    document.getElementById('v_mobile').innerText = d.mobile || d.mobileNumber || "---";
+    document.getElementById('v_bank').innerText = d.bankName || "---";
+    document.getElementById('v_acc').innerText = d.bankAccountNumber || "---";
+    document.getElementById('v_ifsc').innerText = d.ifsc || "---";
+    loadLogs();
+    document.getElementById('profileView').style.display = 'block';
+}
+
+async function loadLogs() {
+    const snap = await db.ref(`CorrectionLogs/${currentCandidate._key}`).once('value');
+    let h = "";
+    snap.forEach(l => {
+        const v = l.val();
+        h = `<div style="background:#f8fafc; padding:10px; border-radius:10px; margin-bottom:8px; border-left:3px solid #be123c; font-size:11px;">
+            <b>${v.field}:</b> <span style="color:#be123c">${v.newValue}</span><br><small>${v.by} • ${v.date}</small>
+        </div>` + h;
+    });
+    document.getElementById('logList').innerHTML = h || "<small>No logs</small>";
+}
+
+// Update Functions
+async function triggerEdit(type) {
+    const { value: v } = await Swal.fire({ title: `Edit ${type}`, input: 'text', showCancelButton: true });
+    if(v) saveUpdate(type, v);
+}
+
+async function triggerBankEdit() {
+    const { value: f } = await Swal.fire({
+        title: 'Update Bank Account',
+        html: `<input id="b_n" class="swal2-input" placeholder="Bank Name" value="${currentCandidate.bankName||''}">
+               <input id="b_a" class="swal2-input" placeholder="Account No" value="${currentCandidate.bankAccountNumber||''}">
+               <input id="b_i" class="swal2-input" placeholder="IFSC" maxlength="11" value="${currentCandidate.ifsc||''}">`,
+        preConfirm: () => ({ bank: document.getElementById('b_n').value, acc: document.getElementById('b_a').value, ifsc: document.getElementById('b_i').value.toUpperCase() })
+    });
+    if(f) saveUpdate('bank', f);
+}
+
+async function saveUpdate(field, val) {
+    const user = JSON.parse(sessionStorage.getItem('activeUser'));
+    const { value: pin } = await Swal.fire({ title: 'Security PIN', input: 'password', inputAttributes: { maxlength: 4 } });
+    
+    if(pin === String(user.pin || "1234")) {
+        const time = new Date().toLocaleString();
+        const up = { isUpdated: true, lastEditedBy: user.name, lastEditedAt: time };
+        let track = currentCandidate.changedFields ? currentCandidate.changedFields + ", " + field : field;
+        up.changedFields = track;
+
+        if(field==='bank'){ up.bankName=val.bank; up.bankAccountNumber=up.bankAccountNo=up.accountNo=val.acc; up.ifsc=up.ifscCode=val.ifsc; }
+        else if(field==='aadhar'){ up.verifiedAadhar=up.aadhar=val; }
+        else { up.mobile=up.mobileNumber=val; }
+
+        await db.ref(`FullDataEntries/${currentCandidate._listId}/${currentCandidate._key}`).update(up);
+        await db.ref(`CorrectionLogs/${currentCandidate._key}`).push({ field, newValue: (field==='bank'?val.ifsc:val), by: user.name, date: time });
+        fetchProfile(); refreshDashboard();
+        Swal.fire('Success', 'Data Updated', 'success');
+    } else { Swal.fire('Error', 'Wrong PIN', 'error'); }
+}
+
+// --- EXCEL DOWNLOAD FIX ---
+async function openExportModal() {
+    const snap = await db.ref('OverallListsMetadata').once('value');
+    let opts = "";
+    snap.forEach(s => { if(s.key!=='hide_it') opts += `<option value="${s.key}">${s.val().listName || s.key}</option>`; });
+
+    const { value: res } = await Swal.fire({
+        title: 'Export Corrected Data',
+        html: `<select id="ex_l" class="swal2-input" onchange="loadTrades(this.value)">${opts}</select>
+               <select id="ex_t" class="swal2-input"><option value="">Select List First</option></select>`,
+        preConfirm: () => ({ lid: document.getElementById('ex_l').value, trade: document.getElementById('ex_t').value })
+    });
+
+    if(res) {
+        const user = JSON.parse(sessionStorage.getItem('activeUser'));
+        const { value: pin } = await Swal.fire({ title: 'Enter PIN', input: 'password' });
+        if(pin === String(user.pin || "1234")) runExcelDownload(res.lid, res.trade);
+        else Swal.fire('Denied', 'Invalid PIN', 'error');
+    }
+}
+
+async function loadTrades(lid) {
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    let trs = new Set();
+    snap.forEach(c => { if(c.val().tradeName) trs.add(c.val().tradeName) });
+    let h = "<option value='ALL'>ALL TRADES</option>";
+    trs.forEach(t => h += `<option value="${t}">${t}</option>`);
+    document.getElementById('ex_t').innerHTML = h;
+}
+
+async function runExcelDownload(lid, trade) {
+    Swal.fire({ title: 'Preparing Excel...', didOpen: () => Swal.showLoading() });
+    
+    try {
+        const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+        let reportData = [];
+
+        snap.forEach(c => {
+            const v = c.val();
+            // FILTER: isUpdated must be true
+            if(v.isUpdated === true && (trade === 'ALL' || v.tradeName === trade)) {
+                reportData.push({
+                    'Application No': v.applicationNumber || 'NA',
+                    'Candidate Name': v.applicantName || '',
+                    'Father Name': v.fatherName || '',
+                    'Status': (v.status || 'PENDING').toUpperCase(),
+                    'Corrections': v.changedFields || 'General',
+                    'Aadhar No': v.verifiedAadhar || v.aadhar || '',
+                    'Mobile No': v.mobile || v.mobileNumber || '',
+                    'Bank Name': v.bankName || '',
+                    'Account No': v.bankAccountNumber || '',
+                    'IFSC': v.ifsc || '',
+                    'Corrected By': v.lastEditedBy || '',
+                    'Correction Date': v.lastEditedAt || ''
+                });
+            }
+        });
+
+        if(reportData.length === 0) {
+            Swal.fire('Empty', 'No corrected records found for this training.', 'info');
+        } else {
+            // XLS Creation Logic
+            const worksheet = XLSX.utils.json_to_sheet(reportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "MIS_Corrections");
+            
+            // Generate and download file
+            XLSX.writeFile(workbook, `Audit_Report_${lid}.xlsx`);
+            Swal.fire('Success', 'Excel Downloaded!', 'success');
+        }
+    } catch (err) {
+        Swal.fire('System Error', err.message, 'error');
+    }
+}
+</script>
+</body>
+</html>

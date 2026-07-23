@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Unverify Control | Sync Pro</title>
+    
+    <script>
+        (function() {
+            const sessionData = sessionStorage.getItem('activeUser');
+            if (!sessionData || sessionData === "null") {
+                window.location.replace("login.html");
+                return;
+            }
+
+            try {
+                const activeUser = JSON.parse(sessionData);
+                // Roles list check karein (Array aur String dono ke liye)
+                const userRoles = activeUser.roles || [activeUser.role];
+                
+                const hasAccess = userRoles.some(r => 
+                    r && r.toString().toLowerCase().trim() === 'mis lead'
+                );
+
+                if (!hasAccess) {
+                    alert("Unauthorized Access! Redirecting to Dashboard.");
+                    window.location.replace("dashboard.html");
+                }
+            } catch (e) {
+                window.location.replace("login.html");
+            }
+        })();
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #dc2626; --bg: #f8fafc; --text: #1e293b; --accent: #4338ca; --white: #ffffff; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: var(--text); -webkit-tap-highlight-color: transparent; }
+        .glass-header { background: var(--white); padding: 12px 16px; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; }
+        .container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 12px; }
+        .bulk-bar { display: flex; justify-content: space-between; align-items: center; background: var(--white); padding: 12px 15px; border-radius: 12px; margin-bottom: 12px; border-left: 4px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+        .card-table { background: var(--white); border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f1f5f9; padding: 12px; text-align: left; font-size: 12px; color: #64748b; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .btn { padding: 8px 15px; border-radius: 8px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+        .btn-approve { background: var(--primary); color: white; }
+    </style>
+</head>
+<body>
+
+<div class="glass-header">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <button onclick="window.history.back()" style="background:none; border:none; font-size:18px; color:var(--primary); cursor:pointer;"><i class="fas fa-arrow-left"></i></button>
+        <div>
+            <h2 style="margin:0; font-size:16px; font-weight:800; color:var(--primary);">UNVERIFY REQUESTS</h2>
+            <div id="misName" style="font-size:10px; color:#64748b;">MIS LEAD CONSOLE</div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="bulk-bar">
+        <div style="font-size: 14px; font-weight: 600;"><span id="selectCount" style="color:var(--primary)">0</span> Selected</div>
+        <button class="btn btn-approve" onclick="handleBulkApprove()"><i class="fas fa-check-double"></i> Bulk Approve</button>
+    </div>
+
+    <div class="card-table">
+        <table>
+            <thead>
+                <tr>
+                    <th width="30"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                    <th>Candidate</th>
+                    <th>Request By</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="pendingTableBody">
+                <tr><td colspan="4" style="text-align:center; padding:20px;">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+// Firebase Initialization (Aman, apni config use karein)
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser'));
+
+window.onload = () => {
+    if(currentUser) document.getElementById('misName').innerText = `MIS LEAD: ${currentUser.name}`;
+    loadRequests();
+};
+
+function loadRequests() {
+    db.ref('UnverifyRequests').on('value', snap => {
+        let h = '';
+        snap.forEach(c => {
+            const d = c.val();
+            if(d.status === 'Pending') {
+                h += `<tr>
+                    <td><input type="checkbox" class="item-check" value="${c.key}" onchange="updateSelection()"></td>
+                    <td><b>${d.candidateName}</b><br><small>${d.applicationNumber}</small></td>
+                    <td>${d.requestedBy}</td>
+                    <td><button class="btn btn-approve" onclick="processUnverify(['${c.key}'])">Approve</button></td>
+                </tr>`;
+            }
+        });
+        document.getElementById('pendingTableBody').innerHTML = h || '<tr><td colspan="4" style="text-align:center">No Pending Requests</td></tr>';
+    });
+}
+
+async function processUnverify(ids) {
+    const { value: pin } = await Swal.fire({
+        title: 'Enter PIN',
+        input: 'password',
+        showCancelButton: true
+    });
+
+    if(pin === String(currentUser.pin)) {
+        for(let id of ids) {
+            const reqSnap = await db.ref(`UnverifyRequests/${id}`).once('value');
+            const req = reqSnap.val();
+            
+            // Database updates
+            await db.ref(`FullDataEntries/${req.listId}/${req.candidateKey}`).update({ isVerified: false, verifiedAadhar: null });
+            await db.ref(`UnverifyRequests/${id}`).remove();
+        }
+        Swal.fire('Success', 'Candidates Unverified', 'success');
+    }
+}
+
+function updateSelection() {
+    const checked = document.querySelectorAll('.item-check:checked');
+    document.getElementById('selectCount').innerText = checked.length;
+}
+
+function toggleSelectAll() {
+    const state = document.getElementById('selectAll').checked;
+    document.querySelectorAll('.item-check').forEach(c => c.checked = state);
+    updateSelection();
+}
+</script>
+</body>
+</html>

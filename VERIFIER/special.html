@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Candidate Pro | Entry Console</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { 
+            --primary: #6366f1; 
+            --success: #10b981; 
+            --warning: #f59e0b; 
+            --bg: #f8fafc; 
+            --card-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            color: #1e293b;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Mobile First Responsive Header */
+        .glass-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            padding: 20px 15px 50px 15px;
+            color: white;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content h2 { margin: 0; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
+        .header-content p { margin: 5px 0 0; font-size: 0.8rem; opacity: 0.8; }
+
+        /* Floating Container */
+        .container { 
+            width: 100%; 
+            max-width: 600px; 
+            margin: -35px auto 20px auto; 
+            padding: 0 15px; 
+            box-sizing: border-box;
+            position: relative;
+            z-index: 101;
+        }
+
+        .card { 
+            background: #fff; 
+            border-radius: 24px; 
+            box-shadow: var(--card-shadow); 
+            padding: 25px; 
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        /* Form Styling */
+        .form-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+        @media (min-width: 600px) { .form-grid { grid-template-columns: repeat(2, 1fr); } }
+
+        .full-width { grid-column: 1 / -1; }
+
+        .form-group { position: relative; }
+        .form-group label { 
+            display: block; 
+            font-size: 11px; 
+            font-weight: 700; 
+            color: #64748b; 
+            margin-bottom: 6px; 
+            text-transform: uppercase;
+            padding-left: 4px;
+        }
+
+        .form-group input, .form-group select { 
+            width: 100%; 
+            padding: 12px 16px; 
+            border: 2px solid #e2e8f0; 
+            border-radius: 14px; 
+            font-size: 14px; 
+            box-sizing: border-box; 
+            transition: all 0.3s ease; 
+            background: #fdfdff;
+            color: #1e293b;
+            font-weight: 500;
+        }
+
+        .form-group input:focus { 
+            border-color: var(--primary); 
+            outline: none; 
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-group input:disabled { background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0; cursor: not-allowed; }
+
+        /* Visual Feedback */
+        .sync-highlight { border-color: var(--success) !important; background: #f0fdf4 !important; }
+        
+        .badge { 
+            display: none; 
+            font-size: 10px; 
+            font-weight: 700; 
+            padding: 4px 10px; 
+            border-radius: 8px; 
+            margin-top: 8px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        /* Submit Button */
+        .btn-submit { 
+            width: 100%; 
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); 
+            color: white; 
+            border: none; 
+            padding: 16px; 
+            border-radius: 16px; 
+            font-size: 16px; 
+            font-weight: 800; 
+            cursor: pointer; 
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-submit:active { transform: scale(0.97); }
+        .btn-update { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); box-shadow: 0 10px 15px -3px rgba(245, 158, 11, 0.3); }
+
+        /* Tooltip style */
+        .info-txt { font-size: 10px; color: #94a3b8; margin-top: 4px; font-weight: 500; }
+    </style>
+</head>
+<body>
+
+<div class="glass-header">
+    <div class="header-content animate__animated animate__fadeIn">
+        <h2>Candidate Registration</h2>
+        <p id="empBadge"><i class="fas fa-user-circle"></i> Authenticating...</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="card animate__animated animate__fadeInUp">
+        <div class="form-grid">
+            
+            <div class="form-group full-width">
+                <label>Application Number</label>
+                <input type="text" id="f_app" placeholder="Enter App No (e.g. VSSY...)" onblur="handleAutoSync(this.value)" style="text-transform: uppercase;">
+                <div id="syncBadge" class="badge" style="background:#dcfce7; color:#166534;"><i class="fas fa-database"></i> Master Sync Active</div>
+                <div id="dupBadge" class="badge" style="background:#fef3c7; color:#92400e;"><i class="fas fa-exclamation-triangle"></i> Duplicate Found</div>
+            </div>
+
+            <div class="form-group">
+                <label>Candidate Name</label>
+                <input type="text" id="f_name" placeholder="Full Name" oninput="this.value = this.value.toUpperCase()">
+            </div>
+
+            <div class="form-group">
+                <label>Father/Husband Name</label>
+                <input type="text" id="f_father" placeholder="Father's Name" oninput="this.value = this.value.toUpperCase()">
+            </div>
+
+            <div class="form-group">
+                <label>Date of Birth</label>
+                <input type="date" id="f_dob">
+                <div class="info-txt">Automatic Format Handling</div>
+            </div>
+
+            <div class="form-group">
+                <label>Mobile Number</label>
+                <input type="number" id="f_mobile" placeholder="10 Digit Number">
+            </div>
+
+            <div class="form-group full-width">
+                <label>Training Trade</label>
+                <div id="tradeBox">
+                    <input type="text" id="f_trade_sync" readonly style="background:#f1f5f9;" placeholder="Loading Trade...">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Current Status</label>
+                <select id="f_status"></select>
+            </div>
+
+            <div class="form-group">
+                <label>Verifier / Area</label>
+                <select id="f_of" onchange="toggleCustomArea(this.value)">
+                    <option value="">-- Select --</option>
+                    <option value="RUBY">RUBY</option>
+                    <option value="NEHA">NEHA</option>
+                    <option value="SHASHI">SHASHI</option>
+                    <option value="RAMDAS">RAMDAS</option>
+                    <option value="PREMDAS">PREMDAS</option>
+                    <option value="NARESH">NARESH</option>
+                    <option value="AKIRTI">AKIRTI</option>
+                    <option value="PRITI KUSHWAHA">PRITI KUSHWAHA</option>
+                    <option value="PRIYANKA KUSHWAHA">PRIYANKA KUSHWAHA</option>
+                    <option value="CUSTOM">-- OTHER --</option>
+                </select>
+                <input type="text" id="f_of_custom" placeholder="Type Verifier Name" style="display:none; margin-top:8px;" oninput="this.value = this.value.toUpperCase()">
+            </div>
+
+            <div class="form-group">
+                <label>Processing Amount</label>
+                <input type="number" id="f_amount" placeholder="0.00">
+            </div>
+
+            <div class="form-group">
+                <label>Employee & Time</label>
+                <input type="text" id="f_meta" disabled style="font-size: 11px;">
+            </div>
+
+            <div class="full-width">
+                <button class="btn-submit" id="submitBtn" onclick="saveData()">
+                    <i class="fas fa-cloud-upload-alt"></i> SAVE CANDIDATE
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+// --- CORE LOGIC ---
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const STATUS_OPTS = ["Applicant absent in committee Meeting", "Application Forwarded to DIC", "Application Rejected BY DIC", "Application Reverted by Institute", "Certificate Approved by DIC", "Certificate Distribute", "Forwarded to selection committee", "Forwarded to Training Institute by DIC", "Rejected for Training", "Revert by DIC to applicant", "Select for Training", "Toolkit Provided", "Training Complete"];
+const DEFAULT_ST = "Forwarded to Training Institute by DIC";
+
+let masterData = {}, specialData = [], editKey = null, tradeSet = new Set();
+const user = JSON.parse(sessionStorage.getItem('activeUser')) || JSON.parse(localStorage.getItem('vssy_user_obj'));
+
+function init() {
+    if (!user) { 
+        Swal.fire({icon:'error', title:'Login Expired', text:'Please login again.'}).then(()=>location.href='index.html'); 
+        return; 
+    }
+    document.getElementById('empBadge').innerHTML = `<i class="fas fa-user-check"></i> ${user.name.toUpperCase()}`;
+    
+    // Auto Timestamp
+    setInterval(() => {
+        document.getElementById('f_meta').value = `${user.name.toUpperCase()} | ${new Date().toLocaleTimeString()}`;
+    }, 1000);
+
+    // Sync Master & Trades
+    db.ref('FullDataEntries').on('value', snap => {
+        masterData = {}; tradeSet.clear();
+        snap.forEach(l => l.forEach(c => {
+            const v = c.val();
+            const app = v.applicationNumber ? v.applicationNumber.trim().toUpperCase() : null;
+            if(app) masterData[app] = v;
+            if(v.tradeName || v.trade) tradeSet.add((v.tradeName || v.trade).toUpperCase());
+        }));
+    });
+
+    db.ref('SpecialCandidatesList').on('value', snap => {
+        specialData = [];
+        snap.forEach(s => { let item = s.val(); item.id = s.key; specialData.push(item); });
+    });
+
+    // Populate Status
+    document.getElementById('f_status').innerHTML = STATUS_OPTS.map(s => `<option value="${s}">${s}</option>`).join('');
+    document.getElementById('f_status').value = DEFAULT_ST;
+}
+
+function parseDOB(str) {
+    if(!str) return "";
+    let d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    let p = str.split(/[\/\- ]/);
+    if(p.length === 3) {
+        if(p[2].length === 4) return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+        if(p[0].length === 4) return `${p[0]}-${p[1].padStart(2,'0')}-${p[2].padStart(2,'0')}`;
+    }
+    return "";
+}
+
+function handleAutoSync(val) {
+    const key = val.trim().toUpperCase();
+    if(!key) return;
+
+    const master = masterData[key];
+    const dup = specialData.find(x => x.appNo.trim().toUpperCase() === key);
+    const btn = document.getElementById('submitBtn');
+
+    if(dup) {
+        editKey = dup.id;
+        document.getElementById('dupBadge').style.display = 'block';
+        btn.innerHTML = `<i class="fas fa-sync"></i> UPDATE DUPLICATE`;
+        btn.classList.add('btn-update');
+        
+        document.getElementById('f_name').value = dup.name || "";
+        document.getElementById('f_father').value = dup.father || "";
+        document.getElementById('f_dob').value = dup.dob || "";
+        document.getElementById('f_mobile').value = dup.mobile || "";
+        document.getElementById('f_amount').value = dup.amount || 0;
+        setTradeUI(dup.trade);
+        document.getElementById('f_status').value = dup.status || DEFAULT_ST;
+    } else {
+        editKey = null;
+        document.getElementById('dupBadge').style.display = 'none';
+        btn.innerHTML = `<i class="fas fa-cloud-upload-alt"></i> SAVE CANDIDATE`;
+        btn.classList.remove('btn-update');
+    }
+
+    if(master) {
+        document.getElementById('syncBadge').style.display = 'block';
+        document.getElementById('f_name').value = (master.applicantName || master.candidateName || "").toUpperCase();
+        document.getElementById('f_father').value = (master.fatherName || master.father || "").toUpperCase();
+        document.getElementById('f_dob').value = parseDOB(master.dob || master.dateOfBirth);
+        document.getElementById('f_mobile').value = master.mobile || master.mobileNumber || "";
+        setTradeUI((master.tradeName || master.trade || "").toUpperCase());
+        const st = master.currentStatus || master.status || DEFAULT_ST;
+        document.getElementById('f_status').value = STATUS_OPTS.includes(st) ? st : DEFAULT_ST;
+        document.querySelectorAll('.form-group input').forEach(i => i.value ? i.classList.add('sync-highlight') : i.classList.remove('sync-highlight'));
+    } else {
+        document.getElementById('syncBadge').style.display = 'none';
+        if(!dup) setTradeUI("");
+    }
+}
+
+function setTradeUI(val) {
+    const box = document.getElementById('tradeBox');
+    if(val) {
+        box.innerHTML = `<input type="text" id="f_trade" value="${val}" readonly style="background:#f0fdf4; border-color:var(--success); color:#166534;">`;
+    } else {
+        let opts = Array.from(tradeSet).map(t => `<option value="${t}">${t}</option>`).join('');
+        box.innerHTML = `<select id="f_trade"><option value="">-- Choose Trade --</option>${opts}</select>`;
+    }
+}
+
+function toggleCustomArea(v) { document.getElementById('f_of_custom').style.display = (v === 'CUSTOM') ? 'block' : 'none'; }
+
+function clearForm() {
+    document.querySelectorAll('.card input:not(:disabled)').forEach(i => { i.value = ""; i.classList.remove('sync-highlight'); });
+    document.getElementById('f_status').value = DEFAULT_ST;
+    document.getElementById('f_of').value = "";
+    document.getElementById('syncBadge').style.display = 'none';
+    document.getElementById('dupBadge').style.display = 'none';
+    editKey = null;
+    setTradeUI("");
+}
+
+async function saveData() {
+    const app = document.getElementById('f_app').value.trim().toUpperCase();
+    const trd = document.getElementById('f_trade').value;
+    if(!app || !trd) return Swal.fire("Required", "Application No & Trade are needed.", "warning");
+
+    let area = document.getElementById('f_of').value;
+    if(area === 'CUSTOM') area = document.getElementById('f_of_custom').value.toUpperCase();
+
+    const payload = {
+        appNo: app, trade: trd,
+        name: document.getElementById('f_name').value.toUpperCase(),
+        father: document.getElementById('f_father').value.toUpperCase(),
+        dob: document.getElementById('f_dob').value,
+        mobile: document.getElementById('f_mobile').value,
+        status: document.getElementById('f_status').value,
+        of: area,
+        amount: document.getElementById('f_amount').value || 0,
+        savedBy: user.name.toUpperCase(),
+        entryAt: new Date().toLocaleString()
+    };
+
+    try {
+        Swal.fire({ title: 'Processing...', didOpen: () => Swal.showLoading() });
+        if(editKey) await db.ref(`SpecialCandidatesList/${editKey}`).update(payload);
+        else await db.ref('SpecialCandidatesList').push(payload);
+        
+        Swal.fire({
+            icon: 'success',
+            title: editKey ? 'Record Updated' : 'Record Added',
+            text: `${payload.name} has been successfully stored.`,
+            showConfirmButton: false,
+            timer: 2000,
+            toast: true,
+            position: 'top-end'
+        });
+        clearForm(); // Don't redirect, just clear
+    } catch (e) { Swal.fire("Error", e.message, "error"); }
+}
+
+window.onload = init;
+</script>
+</body>
+</html>

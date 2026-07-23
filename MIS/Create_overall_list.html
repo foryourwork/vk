@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Admin Master Control</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --red: #be123c; --red-bg: #fff1f2; --success: #059669; --danger: #dc2626; --warning: #f59e0b; --gradient: linear-gradient(135deg, #be123c, #fb7185); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--red-bg); margin: 0; color: #1e293b; overflow-x: hidden; }
+        
+        #lockScreen { position: fixed; inset: 0; background: white; z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+
+        .header { background: white; padding: 12px 15px; border-bottom: 3px solid var(--red); position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; }
+        .container { width: 100%; max-width: 850px; margin: 0 auto; padding: 12px; }
+
+        .banner { background: var(--gradient); color: white; padding: 30px 20px; border-radius: 28px; text-align: center; margin-bottom: 20px; box-shadow: 0 15px 35px rgba(190, 18, 60, 0.2); }
+        .banner img { width: 80px; margin-bottom: 10px; filter: drop-shadow(0 5px 15px rgba(0,0,0,0.2)); }
+
+        .card { background: white; border-radius: 24px; padding: 25px; margin-bottom: 25px; border: 1px solid #ffe4e6; box-shadow: 0 10px 25px rgba(190, 18, 60, 0.05); }
+        
+        label { display: block; font-size: 11px; font-weight: 800; color: var(--red); margin-bottom: 8px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+        input, select { width: 100%; padding: 15px; border-radius: 16px; border: 2px solid #fda4af; margin-bottom: 20px; font-weight: 600; font-size: 14px; outline: none; transition: 0.3s; background: #fffcfc; }
+        input:focus { border-color: var(--red); background: white; box-shadow: 0 0 0 4px rgba(190, 18, 60, 0.1); }
+
+        .btn { border: none; padding: 16px; border-radius: 16px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; color: white; font-size: 15px; width: 100%; transition: 0.3s; text-transform: uppercase; }
+        .btn-save { background: var(--gradient); box-shadow: 0 5px 15px rgba(190, 18, 60, 0.3); }
+        .btn-cancel { background: #64748b; margin-top: 10px; display: none; }
+
+        .list-item { background: white; border-radius: 22px; padding: 20px; margin-bottom: 15px; border: 1px solid #ffe4e6; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; }
+        .list-item:hover { transform: scale(1.02); border-color: var(--red); }
+        
+        .item-hidden { border: 2px dashed #94a3b8; background: #f1f5f9; opacity: 0.8; }
+        
+        .list-info h4 { margin: 0; color: var(--red); font-size: 18px; font-weight: 800; }
+        .list-info p { margin: 6px 0 0; font-size: 12px; color: #64748b; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+
+        .badge { padding: 6px 14px; border-radius: 12px; font-size: 10px; font-weight: 800; margin-top: 12px; display: inline-flex; align-items: center; gap: 6px; text-transform: uppercase; }
+        .bg-upcoming { background: #fef3c7; color: #92400e; }
+        .bg-progress { background: #dcfce7; color: #166534; }
+        .bg-completed { background: #e0f2fe; color: #075985; }
+        .bg-hidden { background: #1e293b; color: white; }
+
+        .action-btns { display: flex; gap: 12px; }
+        .icon-btn { width: 45px; height: 45px; border-radius: 15px; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; font-size: 18px; transition: 0.3s; }
+        .edit-btn { background: #0ea5e9; }
+        .del-btn { background: var(--danger); }
+
+        #customTradeInput { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="lockScreen">
+    <img src="https://cdn-icons-png.flaticon.com/512/6195/6195699.png" class="animate__animated animate__bounce">
+    <h2 style="color:var(--red); font-weight:800;">MASTER CONTROL LOCKED</h2>
+    <p style="color:#64748b;">Please login via the main portal to access manager tools.</p>
+</div>
+
+<div class="header">
+    <div style="display:flex; align-items:center;">
+        <div onclick="window.history.back()" style="cursor:pointer; color:var(--red); font-size: 22px;"><i class="fas fa-arrow-left"></i></div>
+        <div style="margin-left: 15px;">
+            <h2 style="font-size:10px; color:var(--red); font-weight:800; margin:0;">🔐 ADMIN PRIVILEGE</h2>
+            <div id="uName" style="font-size:15px; font-weight:700;">Verifying...</div>
+        </div>
+    </div>
+    <div id="clock" style="font-size:12px; font-weight:800; color: var(--red);"></div>
+</div>
+
+<div class="container">
+    <div class="banner animate__animated animate__zoomIn">
+        <img src="https://cdn-icons-gif.flaticon.com/128/11494/11494196.gif" alt="Admin GIF">
+        <b>CONTROL CENTER</b>
+        <p style="font-size:12px; margin-top:5px; opacity:0.9;">Update & Manage Operational Batch Status</p>
+    </div>
+
+    <div class="card animate__animated animate__fadeInUp">
+        <h3 id="formHeader" style="margin:0 0 20px 0; color:var(--red); font-size:15px; font-weight:800;"><i class="fas fa-edit"></i> BATCH CONFIGURATION</h3>
+        <form id="listForm">
+            <input type="hidden" id="editFirebaseId">
+            
+            <label><i class="fas fa-id-badge"></i> Batch Display Name *</label>
+            <input type="text" id="listName" placeholder="Enter list name..." required>
+
+            <label><i class="fas fa-layer-group"></i> Trade Category *</label>
+            <select id="tradeSelect" required>
+                <option value="" disabled selected>-- Select Trade --</option>
+                <option value="ODOP">ODOP</option>
+                <option value="VSSY">VSSY</option>
+                <option value="custom_add">✨ Custom Category</option>
+            </select>
+            <input type="text" id="customTradeInput" placeholder="Enter custom trade name...">
+
+            <label><i class="fas fa-eye-slash"></i> visibility & status *</label>
+            <select id="statusSelect" required>
+                <option value="Upcoming">📅 Upcoming</option>
+                <option value="In Progress">⚡ In Progress</option>
+                <option value="Completed">✅ Completed</option>
+                <option value="Hide It">🚫 Hide It (Invisible to Employees)</option>
+            </select>
+
+            <button type="submit" id="submitBtn" class="btn btn-save"><i class="fas fa-cloud-upload-alt"></i> <span id="btnText">SYNC DATABASE</span></button>
+            <button type="button" id="cancelEditBtn" class="btn btn-cancel"><i class="fas fa-times"></i> CANCEL</button>
+        </form>
+    </div>
+
+    <div id="resultsList"></div>
+</div>
+
+<script>
+    // Firebase Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+        authDomain: "dbform-db4c9.firebaseapp.com",
+        databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "dbform-db4c9",
+        storageBucket: "dbform-db4c9.firebasestorage.app",
+        messagingSenderId: "930632470946",
+        appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Security Logic
+    const sessionUser = sessionStorage.getItem('activeUser');
+    let EMPLOYEE_LOGIN_PIN = "";
+
+    if(!sessionUser) {
+        document.getElementById('lockScreen').style.display = 'flex';
+    } else {
+        const userData = JSON.parse(sessionUser);
+        document.getElementById('uName').innerText = userData.name || "Admin";
+        EMPLOYEE_LOGIN_PIN = userData.pin || userData.password || ""; 
+    }
+
+    setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-IN'); }, 1000);
+
+    const form = document.getElementById('listForm');
+    const tradeSelect = document.getElementById('tradeSelect');
+    const customTradeInput = document.getElementById('customTradeInput');
+    const resultsList = document.getElementById('resultsList');
+
+    tradeSelect.onchange = () => {
+        customTradeInput.style.display = tradeSelect.value === 'custom_add' ? 'block' : 'none';
+        customTradeInput.required = tradeSelect.value === 'custom_add';
+    };
+
+    // Load Data: Manager sees EVERYTHING (including Hide It)
+    db.ref('OverallListsMetadata').on('value', (snapshot) => {
+        resultsList.innerHTML = '';
+        if (!snapshot.exists()) return;
+
+        snapshot.forEach((child) => {
+            const data = child.val();
+            const key = child.key;
+            
+            const isHidden = data.status === 'Hide It';
+            const sCls = isHidden ? 'bg-hidden' : (data.status === 'In Progress' ? 'bg-progress' : (data.status === 'Completed' ? 'bg-completed' : 'bg-upcoming'));
+            const sIcon = isHidden ? 'fa-eye-slash' : 'fa-check-circle';
+            
+            resultsList.innerHTML += `
+                <div class="list-item animate__animated animate__fadeInRight ${isHidden ? 'item-hidden' : ''}">
+                    <div class="list-info">
+                        <h4>${data.listName} ${isHidden ? '<small>(Hidden)</small>' : ''}</h4>
+                        <p><i class="fas fa-tag"></i> ${data.trade}</p>
+                        <span class="badge ${sCls}"><i class="fas ${sIcon}"></i> ${data.status}</span>
+                    </div>
+                    <div class="action-btns">
+                        <button class="icon-btn edit-btn" onclick="editRow('${key}')"><i class="fas fa-pen"></i></button>
+                        <button class="icon-btn del-btn" onclick="deleteRow('${key}')"><i class="fas fa-trash-alt"></i></button>
+                    </div>
+                </div>`;
+        });
+    });
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const { isConfirmed } = await Swal.fire({ title: 'Confirm Sync?', text: 'Pushing updates to cloud storage...', icon: 'question', showCancelButton: true });
+        if (!isConfirmed) return;
+
+        const tradeVal = tradeSelect.value === 'custom_add' ? customTradeInput.value : tradeSelect.value;
+        const entry = {
+            listName: document.getElementById('listName').value,
+            trade: tradeVal,
+            status: document.getElementById('statusSelect').value,
+            lastUpdatedBy: document.getElementById('uName').innerText,
+            updatedAt: new Date().toISOString()
+        };
+
+        const editId = document.getElementById('editFirebaseId').value;
+        if (editId) await db.ref('OverallListsMetadata/' + editId).update(entry);
+        else await db.ref('OverallListsMetadata').push(entry);
+        
+        Swal.fire('Synced!', 'Live database updated successfully.', 'success');
+        resetUI();
+    };
+
+    window.editRow = (key) => {
+        db.ref('OverallListsMetadata/' + key).once('value', s => {
+            const d = s.val();
+            document.getElementById('editFirebaseId').value = key;
+            document.getElementById('listName').value = d.listName;
+            document.getElementById('statusSelect').value = d.status;
+            tradeSelect.value = (d.trade==='ODOP'||d.trade==='VSSY') ? d.trade : 'custom_add';
+            if(tradeSelect.value==='custom_add') { customTradeInput.style.display='block'; customTradeInput.value=d.trade; }
+            document.getElementById('formHeader').innerHTML = '<i class="fas fa-edit"></i> EDITING MODE';
+            document.getElementById('btnText').innerText = "UPDATE BATCH";
+            document.getElementById('cancelEditBtn').style.display = "block";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    };
+
+    // Delete with Employee Login PIN
+    window.deleteRow = async (key) => {
+        const { isConfirmed } = await Swal.fire({ title: 'Permanent Delete?', text: 'This batch will be wiped from cloud.', icon: 'warning', showCancelButton: true });
+        if (!isConfirmed) return;
+
+        const { value: pin } = await Swal.fire({
+            title: 'Verify PIN',
+            text: 'Enter your Employee LOGIN PIN to delete.',
+            input: 'password',
+            inputPlaceholder: 'Enter PIN here'
+        });
+
+        if (pin === EMPLOYEE_LOGIN_PIN && pin !== "") {
+            await db.ref('OverallListsMetadata/' + key).remove();
+            Swal.fire('Deleted', 'Record removed from cloud.', 'success');
+        } else if (pin !== undefined) {
+            Swal.fire('Error', 'Incorrect PIN! Authorization failed.', 'error');
+        }
+    };
+
+    function resetUI() {
+        form.reset();
+        document.getElementById('editFirebaseId').value = "";
+        document.getElementById('formHeader').innerHTML = '<i class="fas fa-edit"></i> BATCH CONFIGURATION';
+        document.getElementById('btnText').innerText = "SYNC DATABASE";
+        document.getElementById('cancelEditBtn').style.display = "none";
+        customTradeInput.style.display = "none";
+    }
+
+    document.getElementById('cancelEditBtn').onclick = resetUI;
+</script>
+</body>
+</html>

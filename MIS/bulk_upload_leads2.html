@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | MIS Universal Admin</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #be123c; --bg: #f8fafc; --white: #ffffff; --text: #0f172a; --success: #059669; --border: #e2e8f0; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background: var(--bg); margin: 0; color: var(--text); padding-bottom: 50px; }
+        
+        .header { background: white; padding: 12px 20px; border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        .main-container { padding: 15px; max-width: 700px; margin: 0 auto; }
+        
+        .section-card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 15px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        label { font-size: 10px; font-weight: 800; color: var(--primary); text-transform: uppercase; display: block; margin-bottom: 8px; }
+        
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .btn { border: none; padding: 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-p { background: var(--primary); color: white; }
+        .btn-s { background: #e2e8f0; color: #475569; }
+        .btn-excel { background: #107c41; color: white; width: 100%; }
+
+        .lead-card { background: white; border-radius: 18px; padding: 15px; margin-bottom: 12px; border: 1px solid var(--border); }
+        .tag { display: inline-block; padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 800; margin-bottom: 8px; text-transform: uppercase; }
+        .tag-male { background: #eff6ff; color: #1d4ed8; }
+        .tag-female { background: #fdf2f8; color: #be185d; }
+        .tag-none { background: #f1f5f9; color: #64748b; }
+
+        #loader { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 3000; display: none; place-items: center; }
+        select, input { width: 100%; padding: 12px; border-radius: 12px; border: 1.5px solid #f1f5f9; margin-bottom: 10px; outline: none; background: #f8fafc; font-weight: 600; }
+        
+        #excelPreviewArea { margin-top: 15px; border-top: 2px dashed var(--border); padding-top: 15px; }
+        .preview-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .preview-table th { text-align: left; padding: 8px; background: #f1f5f9; color: var(--primary); }
+        .preview-table td { padding: 8px; border-bottom: 1px solid #f1f5f9; }
+    </style>
+</head>
+<body>
+
+<div id="loader"><i class="fas fa-circle-notch fa-spin fa-3x" style="color:var(--primary)"></i></div>
+
+<div class="header">
+    <div class="back-btn" onclick="window.history.back()" style="cursor:pointer; color:var(--primary);"><i class="fas fa-chevron-left"></i></div>
+    <div style="flex-grow: 1; margin-left: 15px;">
+        <h2 style="margin:0; font-size:16px; font-weight:800;">MIS UNIVERSAL ADMIN</h2>
+        <div id="uNameDisp" style="font-size:10px; color:var(--success); font-weight:700;">Admin Active</div>
+    </div>
+</div>
+
+<div class="main-container">
+
+    <div class="section-card">
+        <label><i class="fas fa-upload"></i> Bulk Assign (Format: SR | NAME | FATHER NAME | MOB 1 | MOB 2)</label>
+        <div class="btn-row">
+            <button class="btn btn-s" onclick="downloadSample()"><i class="fas fa-download"></i> Sample</button>
+            <button class="btn btn-p" onclick="document.getElementById('excelInput').click()"><i class="fas fa-file-excel"></i> Upload Excel</button>
+            <input type="file" id="excelInput" style="display:none" onchange="handleExcelUpload(this)">
+        </div>
+
+        <div id="excelPreviewArea" style="display:none">
+            <div id="excelStats" style="font-size:11px; font-weight:700; color:var(--success); margin-bottom:10px;"></div>
+            <div style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 10px;">
+                <table class="preview-table" id="pTable"></table>
+            </div>
+            <button class="btn btn-p" style="margin-top:10px; width:100%" onclick="processBulkAssign()">Confirm & Assign All</button>
+        </div>
+    </div>
+
+    <div class="section-card">
+        <label><i class="fas fa-file-download"></i> Download Triple-Sheet Report</label>
+        <button class="btn btn-excel" onclick="downloadTripleSheetExcel()">
+            <i class="fas fa-download"></i> DOWNLOAD EXCEL (MALE/FEMALE/NC)
+        </button>
+    </div>
+
+    <div class="section-card">
+        <label>Search & Filters</label>
+        <input type="text" id="searchInput" placeholder="नाम या नंबर से खोजें..." oninput="applyFilters()">
+        <select id="catFilter" onchange="applyFilters()">
+            <option value="ALL">All Categories</option>
+            <option value="Male ITI">Male ITI Only</option>
+            <option value="Female ITI">Female ITI Only</option>
+            <option value="Not confirm now">Not Confirmed</option>
+        </select>
+        <div id="resultsCount" style="font-size:10px; font-weight:700; color:#64748b;">0 Leads Found</div>
+    </div>
+
+    <div id="leadResults"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser'));
+let rawData = [], excelMatchedLeads = [], callers = [];
+
+window.onload = async () => {
+    toggleLoader(true);
+    await loadCallers();
+    await loadMainData();
+    toggleLoader(false);
+};
+
+async function loadCallers() {
+    const snap = await db.ref('EmployeeAuthList').once('value');
+    callers = [];
+    snap.forEach(e => {
+        const d = e.val();
+        if((d.roles || []).includes('Caller') || d.role === 'Caller') {
+            callers.push({ id: d.pin || e.key, name: d.name });
+        }
+    });
+}
+
+async function loadMainData() {
+    db.ref('UrgentCalls').on('value', snap => {
+        rawData = [];
+        snap.forEach(c => { rawData.push({ ...c.val(), dbKey: c.key }); });
+        applyFilters();
+    });
+}
+
+function applyFilters() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    const cat = document.getElementById('catFilter').value;
+    const filtered = rawData.filter(d => {
+        const matchSearch = d.candidateName.toLowerCase().includes(term) || String(d.mobile).includes(term);
+        const matchCat = (cat === 'ALL' || (d.studentType || "Not confirm now") === cat);
+        return matchSearch && matchCat;
+    });
+    renderLeads(filtered);
+}
+
+function renderLeads(list) {
+    document.getElementById('resultsCount').innerText = `${list.length} Leads Found`;
+    let h = '';
+    list.forEach(d => {
+        const type = d.studentType || "Not confirm now";
+        const tagClass = type === 'Male ITI' ? 'tag-male' : (type === 'Female ITI' ? 'tag-female' : 'tag-none');
+        h += `<div class="lead-card">
+            <span class="tag ${tagClass}">${type}</span>
+            <div style="font-size:16px; font-weight:800;">${d.candidateName}</div>
+            <div style="font-size:11px; color:#64748b; margin-top:5px;">
+                Mob: ${d.mobile} | Assigned To: ${d.assignedToName || 'N/A'} <br>
+                Status: <span style="color:var(--primary); font-weight:700;">${d.lastCallStatus || 'Pending'}</span>
+            </div>
+        </div>`;
+    });
+    document.getElementById('leadResults').innerHTML = h;
+}
+
+// --- UPDATED EXCEL FORMAT LOGIC (SR | NAME | FATHER | MOB 1 | MOB 2) ---
+
+function downloadSample() {
+    const data = [["SR", "NAME", "FATHER NAME", "MOBILE NUMBER 1", "MOBILE NUMBER 2"], ["1", "John Doe", "Mr. Doe", "9876543210", "9876543211"]];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sample");
+    XLSX.writeFile(wb, "Bulk_Assignment_Format.xlsx");
+}
+
+async function handleExcelUpload(input) {
+    const file = input.files[0];
+    if(!file) return;
+    toggleLoader(true);
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        
+        // Match using Mobile Number or Name
+        const masterSnap = await db.ref('FullDataEntries').once('value');
+        excelMatchedLeads = [];
+        
+        const uploadMob1 = json.map(r => String(r["MOBILE NUMBER 1"] || "").trim());
+
+        masterSnap.forEach(list => {
+            list.forEach(item => {
+                const d = item.val();
+                if(uploadMob1.includes(String(d.mobile))) {
+                    const excelRow = json.find(r => String(r["MOBILE NUMBER 1"]) === String(d.mobile));
+                    excelMatchedLeads.push({ ...d, dbKey: item.key, altMob: excelRow["MOBILE NUMBER 2"] || '' });
+                }
+            });
+        });
+
+        toggleLoader(false);
+        if(excelMatchedLeads.length === 0) {
+            Swal.fire('No Match', 'Excel ke numbers database mein nahi mile.', 'warning');
+        } else {
+            document.getElementById('excelPreviewArea').style.display = 'block';
+            document.getElementById('excelStats').innerText = `${excelMatchedLeads.length} Leads Matched!`;
+            let th = '<tr><th>Name</th><th>Mobile</th></tr>';
+            excelMatchedLeads.slice(0, 10).forEach(l => {
+                th += `<tr><td>${l.applicantName}</td><td>${l.mobile}</td></tr>`;
+            });
+            document.getElementById('pTable').innerHTML = th;
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+async function processBulkAssign() {
+    const { value: form } = await Swal.fire({
+        title: 'Assign To Caller',
+        html: `<select id="swCaller" class="swal2-input">${callers.map(c => `<option value="${c.id}|${c.name}">${c.name}</option>`).join('')}</select>`,
+        preConfirm: () => ({ caller: document.getElementById('swCaller').value })
+    });
+
+    if(form) {
+        toggleLoader(true);
+        const [cId, cName] = form.caller.split('|');
+        const updates = {};
+        excelMatchedLeads.forEach(d => {
+            updates[`UrgentCalls/${d.dbKey}`] = {
+                candidateId: d.dbKey, candidateName: d.applicantName, fatherName: d.fatherName || 'N/A',
+                mobile: d.mobile, altMobile: d.altMob || '', applicationNumber: d.applicationNumber || 'N/A',
+                assignedTo: String(cId), assignedToName: cName, status: 'Pending', 
+                assignedDate: new Date().toLocaleString(), callCount: 0
+            };
+        });
+        await db.ref().update(updates);
+        toggleLoader(false);
+        Swal.fire('Success', 'Leads Assigned!', 'success');
+        document.getElementById('excelPreviewArea').style.display = 'none';
+    }
+}
+
+async function downloadTripleSheetExcel() {
+    toggleLoader(true);
+    const male = rawData.filter(d => d.studentType === 'Male ITI');
+    const female = rawData.filter(d => d.studentType === 'Female ITI');
+    const nc = rawData.filter(d => !d.studentType || d.studentType === 'Not confirm now');
+
+    const format = (list) => list.map(d => ({
+        "Name": d.candidateName, "Father": d.fatherName, "Mobile 1": d.mobile, "Mobile 2": d.altMobile || '',
+        "Status": d.lastCallStatus || 'Pending', "Caller": d.assignedToName || '', "Date": d.lastCallTime || ''
+    }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(format(male)), "Male ITI");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(format(female)), "Female ITI");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(format(nc)), "Not Confirmed");
+    XLSX.writeFile(wb, `MIS_Report_${new Date().toLocaleDateString()}.xlsx`);
+    toggleLoader(false);
+}
+
+function toggleLoader(s) { document.getElementById('loader').style.display = s ? 'grid' : 'none'; }
+</script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Professional Verifier</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { 
+            --primary: #059669; 
+            --primary-grad: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            --blue-grad: linear-gradient(135deg, #4338ca 0%, #6366f1 100%);
+            --orange-grad: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
+            --bg: #f8fafc; 
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: #1e293b; padding-bottom: 30px; }
+
+        .header { 
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+            padding: 15px 20px; display: flex; justify-content: space-between; 
+            align-items: center; border-bottom: 1px solid #e2e8f0; 
+            position: sticky; top: 0; z-index: 1000; 
+        }
+        .user-brand h2 { font-size: 1.1rem; font-weight: 800; color: var(--primary); }
+        .role-switch-btn { 
+            font-size: 0.75rem; background: #ecfdf5; color: var(--primary); 
+            padding: 6px 14px; border-radius: 20px; font-weight: 700; 
+            margin-top: 5px; border: 1px solid #d1fae5; cursor: pointer; display: flex; align-items: center; gap: 6px;
+        }
+
+        .container { padding: 20px; max-width: 550px; margin: 0 auto; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 25px; }
+        .stat-box { 
+            padding: 20px 15px; border-radius: 24px; color: white;
+            display: flex; flex-direction: column; justify-content: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+        }
+        .stat-box.total { grid-column: span 2; background: var(--primary-grad); }
+        .stat-box.today { background: var(--blue-grad); }
+        .stat-box.yesterday { background: var(--orange-grad); }
+        
+        .stat-box b { font-size: 1.6rem; font-weight: 800; display: block; }
+        .stat-box span { font-size: 0.7rem; font-weight: 600; opacity: 0.9; text-transform: uppercase; }
+
+        .sec-title { font-size: 0.8rem; font-weight: 800; color: #64748b; margin: 25px 0 12px 5px; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 10px; }
+        .sec-title::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+
+        .services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+        .service-card { 
+            background: white; border-radius: 20px; padding: 18px 10px;
+            text-decoration: none; display: flex; flex-direction: column; 
+            align-items: center; gap: 10px; border: 1px solid #f1f5f9; 
+            transition: 0.3s; position: relative;
+        }
+        .service-card:active { transform: scale(0.95); }
+        .service-card i { font-size: 22px; color: var(--primary); }
+        .service-card span { font-size: 11px; font-weight: 700; color: #1e293b; text-align: center; }
+
+        .badge { 
+            position: absolute; top: -5px; right: -5px; 
+            background: #ef4444; color: white; padding: 4px 8px; 
+            border-radius: 10px; font-size: 10px; font-weight: 800;
+        }
+
+        .logout-btn { background: #fee2e2; color: #ef4444; border: none; width: 42px; height: 42px; border-radius: 14px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="user-meta">
+            <h2 id="vName">Hello...</h2>
+            <button class="role-switch-btn" id="swBtn" onclick="handleSwitch()">
+                <i class="fas fa-random"></i> <span>SWITCH DASHBOARD</span>
+            </button>
+        </div>
+        <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i></button>
+    </div>
+
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-box total">
+                <b id="totalVerifiedCount">0</b>
+                <span>Total Verified Candidates</span>
+            </div>
+            <div class="stat-box today">
+                <b id="myTodayVerified">0</b>
+                <span>My Today Verified</span>
+            </div>
+            <div class="stat-box yesterday">
+                <b id="myYesterdayVerified">0</b>
+                <span>My Yesterday</span>
+            </div>
+        </div>
+
+        <div class="sec-title">Candidates & Verification</div>
+        <div class="services-grid">
+            			<a href="verification2.html" class="service-card">
+                <i class="fas fa-user-check"></i>
+                <span>Verification</span>
+                <span class="badge" id="pendingVerifyBadge">0</span>
+            </a>
+        </div>
+		<div class="services-grid">
+            			<a href="EXAM_ATTANDANCE.HTML" class="service-card">
+                <i class="fas fa-user-check"></i>
+                <span>EXAM attandance</span>
+                <span class="badge" id="pendingVerifyBadge">0</span>
+            </a>
+        </div>
+
+        <div class="sec-title">Report & Special</div>
+        <div class="services-grid">
+            <a href="verified_report.html" class="service-card"><i class="fas fa-list-check"></i><span>Verified List</span></a>
+            <a href="special.html" class="service-card"><i class="fas fa-user-tag"></i><span>Special</span></a>
+            <a href="doc_exp.html" class="service-card"><i class="fas fa-user-tag"></i><span>Candidate details</span></a>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+            authDomain: "dbform-db4c9.firebaseapp.com",
+            databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "dbform-db4c9",
+            storageBucket: "dbform-db4c9.firebasestorage.app",
+            messagingSenderId: "930632470946",
+            appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const user = JSON.parse(sessionStorage.getItem('activeUser'));
+        if (!user) window.location.href = "../login.html";
+
+        const roles = user.roles || [user.role];
+        const empName = user.name || "Verifier";
+
+        window.onload = function() {
+            document.getElementById('vName').innerText = `Hello, ${empName.split(' ')[0]}`;
+            if(roles.length <= 1) document.getElementById('swBtn').style.display = 'none';
+            initSync();
+        };
+
+        function initSync() {
+            const todayStr = new Date().toLocaleDateString('en-GB'); // DD/MM/YYYY
+            const yesterdayDate = new Date();
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yesterdayStr = yesterdayDate.toLocaleDateString('en-GB');
+
+            db.ref('FullDataEntries').on('value', snap => {
+                let totalSystemVerified = 0;
+                let myToday = 0;
+                let myYesterday = 0;
+                let pendingCount = 0;
+
+                snap.forEach(batch => {
+                    batch.forEach(child => {
+                        const d = child.val();
+
+                        // 1. Check if candidate is verified
+                        if (d.isVerified === true) {
+                            totalSystemVerified++;
+
+                            // 2. Performance filtering by employee name and date
+                            if (d.verifiedBy === empName) {
+                                if (d.verifiedDate && d.verifiedDate.includes(todayStr)) {
+                                    myToday++;
+                                } else if (d.verifiedDate && d.verifiedDate.includes(yesterdayStr)) {
+                                    myYesterday++;
+                                }
+                            }
+                        }
+
+                        // 3. Pending Verification Badge Logic
+                        // (Caller ने कॉल किया है पर अभी Verifier ने OK नहीं किया)
+                        if (d.lastCallStatus && !d.isVerified) {
+                            pendingCount++;
+                        }
+                    });
+                });
+
+                // Display Updates
+                document.getElementById('totalVerifiedCount').innerText = totalSystemVerified;
+                document.getElementById('myTodayVerified').innerText = myToday;
+                document.getElementById('myYesterdayVerified').innerText = myYesterday;
+                document.getElementById('pendingVerifyBadge').innerText = pendingCount;
+            });
+        }
+
+        function handleSwitch() {
+            const map = {
+                "Verifier": "vr_dash.html",
+                "Caller": "../CALLER/cl_dash.html",
+                "MIS Lead": "../MIS/mis_dash.html",
+                "Administrator": "../admin.html"
+            };
+            const opts = {};
+            roles.forEach(r => { if(map[r]) opts[map[r]] = r; });
+
+            Swal.fire({
+                title: 'Switch Role',
+                input: 'select',
+                inputOptions: opts,
+                confirmButtonColor: '#059669'
+            }).then(res => { if(res.isConfirmed) window.location.href = res.value; });
+        }
+
+        function logout() {
+            sessionStorage.clear();
+            window.location.href = "../login.html";
+        }
+    </script>
+</body>
+</html>

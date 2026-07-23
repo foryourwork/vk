@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | Template Manager</title>
+    
+    <script>
+        // MIS LEAD Role Security
+        (function() {
+            const user = JSON.parse(sessionStorage.getItem('activeUser'));
+            if (!user) { window.location.href = "login.html"; return; }
+            const roles = user.roles || [user.role];
+            if (!roles.some(r => String(r).toLowerCase() === 'mis lead')) {
+                window.location.href = "login.html";
+            }
+        })();
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #be123c; --bg: #f8fafc; --wa-bubble: #dcf8c6; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #1e293b; }
+        .container { max-width: 500px; margin: 0 auto; }
+        
+        .header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; background: white; padding: 10px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .back-btn { width: 35px; height: 35px; border-radius: 10px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: var(--primary); font-size: 18px; }
+
+        .card { background: white; padding: 20px; border-radius: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 11px; font-weight: 800; color: #64748b; margin-bottom: 6px; text-transform: uppercase; }
+        
+        input, textarea, select { width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-family: inherit; font-size: 14px; box-sizing: border-box; }
+        
+        .placeholder-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .chip { background: #f1f5f9; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; border: 1px solid #e2e8f0; }
+        
+        .wa-preview-screen { background: #e5ddd5; border-radius: 15px; padding: 15px; min-height: 80px; margin-top: 10px; }
+        .wa-bubble { background: var(--wa-bubble); padding: 10px 15px; border-radius: 10px; font-size: 13px; line-height: 1.5; color: #303030; box-shadow: 0 1px 2px rgba(0,0,0,0.1); max-width: 90%; }
+        .wa-bubble b { color: var(--primary); }
+
+        .save-btn { width: 100%; background: var(--primary); color: white; border: none; padding: 16px; border-radius: 16px; font-weight: 800; cursor: pointer; margin-top: 15px; }
+
+        /* List & Pagination */
+        .temp-item { background: white; padding: 15px; border-radius: 16px; margin-bottom: 10px; border: 1px solid #edf2f7; position: relative; }
+        .temp-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .temp-body { font-size: 12px; color: #64748b; margin-top: 8px; line-height: 1.4; }
+        .temp-footer { font-size: 9px; color: #94a3b8; margin-top: 10px; border-top: 1px solid #f1f5f9; padding-top: 5px; }
+        .action-btns { display: flex; gap: 10px; margin-top: 10px; }
+        .btn-sm { padding: 5px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer; border: none; }
+        .btn-edit { background: #e0f2fe; color: #0369a1; }
+        .btn-del { background: #fee2e2; color: #991b1b; }
+
+        .pagination { display: flex; justify-content: center; gap: 5px; margin: 20px 0; }
+        .pag-btn { padding: 8px 12px; border: none; border-radius: 8px; background: white; font-weight: 700; font-size: 12px; }
+        .pag-btn.active { background: var(--primary); color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <button class="back-btn" onclick="window.history.back()"><i class="fas fa-arrow-left"></i></button>
+        <h2 style="margin:0; font-size:16px; font-weight: 800;">Template Manager</h2>
+    </div>
+
+    <div class="card">
+        <div class="form-group">
+            <label>Template Name</label>
+            <input type="text" id="tempTitle" placeholder="उदा: अनुपस्थित_VSSY">
+        </div>
+
+        <div class="form-group">
+            <label>Message Content</label>
+            <textarea id="tempContent" rows="6" placeholder="मैसेज यहाँ लिखें..." oninput="updatePreview()"></textarea>
+            <div class="placeholder-chips">
+                <span class="chip" onclick="addTag('{name}')">नाम</span>
+                <span class="chip" onclick="addTag('{father}')">पिता</span>
+                <span class="chip" onclick="addTag('{scheme}')">योजना</span>
+                <span class="chip" onclick="addTag('{trade}')">ट्रेड</span>
+            </div>
+        </div>
+
+        <label>Live Preview (Sample)</label>
+        <div class="wa-preview-screen">
+            <div class="wa-bubble" id="livePreview">मैसेज का प्रीव्यू...</div>
+        </div>
+
+        <button class="save-btn" id="saveBtn" onclick="saveTemplate()">SAVE TEMPLATE</button>
+    </div>
+
+    <div id="templateListArea"></div>
+    <div class="pagination" id="pagArea"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser'));
+
+let allTemplates = [], currentPage = 1, rowsPerPage = 5, editKey = null;
+
+function addTag(tag) {
+    const area = document.getElementById('tempContent');
+    area.value += tag;
+    updatePreview();
+    area.focus();
+}
+
+function updatePreview() {
+    const content = document.getElementById('tempContent').value;
+    const sample = {
+        name: "अमन श्रीवास्तव",
+        father: "रामलाल",
+        scheme: "विश्वकर्मा श्रम सम्मान योजना",
+        trade: "दर्जी"
+    };
+
+    const final = content
+        .replace(/{name}/g, `<b>${sample.name}</b>`)
+        .replace(/{father}/g, `<b>${sample.father}</b>`)
+        .replace(/{scheme}/g, `<b>${sample.scheme}</b>`)
+        .replace(/{trade}/g, `<b>${sample.trade}</b>`);
+
+    document.getElementById('livePreview').innerHTML = final.replace(/\n/g, '<br>') || "मैसेज का प्रीव्यू...";
+}
+
+function saveTemplate() {
+    const title = document.getElementById('tempTitle').value.trim();
+    const content = document.getElementById('tempContent').value.trim();
+
+    if(!title || !content) return Swal.fire('Error', 'Fields empty', 'error');
+
+    const data = {
+        title, content,
+        savedBy: currentUser.name,
+        savedAt: new Date().toLocaleString('hi-IN'),
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    };
+
+    const ref = db.ref('MessageTemplates');
+    const promise = editKey ? ref.child(editKey).update(data) : ref.push(data);
+
+    promise.then(() => {
+        Swal.fire('Success', 'Template Saved', 'success');
+        resetForm();
+    });
+}
+
+function resetForm() {
+    document.getElementById('tempTitle').value = '';
+    document.getElementById('tempContent').value = '';
+    document.getElementById('saveBtn').innerText = 'SAVE TEMPLATE';
+    editKey = null;
+    updatePreview();
+}
+
+// Data Loading & Pagination
+db.ref('MessageTemplates').on('value', snap => {
+    allTemplates = [];
+    snap.forEach(child => {
+        allTemplates.push({ key: child.key, ...child.val() });
+    });
+    allTemplates.reverse();
+    renderList();
+});
+
+function renderList() {
+    const start = (currentPage - 1) * rowsPerPage;
+    const end = start + rowsPerPage;
+    const paged = allTemplates.slice(start, end);
+
+    let h = '';
+    paged.forEach(t => {
+        h += `
+        <div class="temp-item">
+            <div class="temp-header">
+                <b style="font-size:14px">${t.title}</b>
+            </div>
+            <div class="temp-body">${t.content.substring(0, 100)}...</div>
+            <div class="temp-footer">
+                Saved By: ${t.savedBy} | ${t.savedAt}
+            </div>
+            <div class="action-btns">
+                <button class="btn-sm btn-edit" onclick="editTemp('${t.key}')"><i class="fas fa-edit"></i> Edit</button>
+                <button class="btn-sm btn-del" onclick="deleteTemp('${t.key}')"><i class="fas fa-trash"></i> Delete</button>
+            </div>
+        </div>`;
+    });
+    document.getElementById('templateListArea').innerHTML = h || '<p style="text-align:center; color:#94a3b8">No Templates Found</p>';
+    renderPagination();
+}
+
+function renderPagination() {
+    const total = Math.ceil(allTemplates.length / rowsPerPage);
+    let h = '';
+    for(let i=1; i<=total; i++) {
+        h += `<button class="pag-btn ${i===currentPage?'active':''}" onclick="changePage(${i})">${i}</button>`;
+    }
+    document.getElementById('pagArea').innerHTML = h;
+}
+
+function changePage(p) { currentPage = p; renderList(); }
+
+function deleteTemp(key) {
+    Swal.fire({ title:'Delete?', icon:'warning', showCancelButton:true }).then(res => {
+        if(res.isConfirmed) db.ref('MessageTemplates').child(key).remove();
+    });
+}
+
+function editTemp(key) {
+    const t = allTemplates.find(x => x.key === key);
+    document.getElementById('tempTitle').value = t.title;
+    document.getElementById('tempContent').value = t.content;
+    document.getElementById('saveBtn').innerText = 'UPDATE TEMPLATE';
+    editKey = key;
+    updatePreview();
+    window.scrollTo(0,0);
+}
+
+// Logic to replace Scheme with Hindi Full Name during use
+function getHindiScheme(lid) {
+    const s = String(lid).toUpperCase();
+    if(s.includes('VSSY')) return "विश्वकर्मा श्रम सम्मान योजना";
+    if(s.includes('ODOP')) return "एक जनपद एक उत्पाद";
+    return lid; // Other schemes remain same
+}
+</script>
+</body>
+</html>

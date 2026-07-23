@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filtered Report | VSSY</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #6366f1; --primary-dark: #4338ca; --bg: #f8fafc; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; }
+        .glass-header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 25px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        
+        .filter-card { 
+            background: #fff; border-radius: 15px; padding: 20px; 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); align-items: flex-end; margin-bottom: 25px;
+        }
+
+        .form-group label { display: block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 5px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px; outline: none; box-sizing: border-box; }
+        
+        .btn-search { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: 0.3s; }
+        .btn-search:hover { background: var(--primary-dark); }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
+        .stat-card { background: white; padding: 15px; border-radius: 12px; text-align: center; border-left: 5px solid var(--primary); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        .stat-card h4 { margin: 0; font-size: 12px; color: #64748b; }
+        .stat-card p { margin: 5px 0 0; font-size: 24px; font-weight: 800; }
+
+        .report-table { width: 100%; background: white; border-radius: 12px; overflow: hidden; border-collapse: collapse; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .report-table th { background: #f1f5f9; padding: 12px; text-align: left; font-size: 12px; color: #475569; }
+        .report-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        .reason-tag { background: #fee2e2; color: #dc2626; padding: 3px 8px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+<div class="glass-header">
+    <div class="container">
+        <h2 style="margin:0;"><i class="fas fa-chart-line"></i> Training Attendance Report</h2>
+    </div>
+</div>
+
+<div class="container">
+    <div class="filter-card">
+        <div class="form-group">
+            <label>1. Select Date</label>
+            <input type="date" id="repDate">
+        </div>
+        <div class="form-group">
+            <label>2. Master List</label>
+            <select id="repList" onchange="filterTrainingsByList(this.value)">
+                <option value="">-- All Lists --</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>3. Training Program</label>
+            <select id="repTraining">
+                <option value="">-- Select Master List First --</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>4. Search Student</label>
+            <input type="text" id="repSearch" placeholder="Name or No.">
+        </div>
+        <button class="btn-search" onclick="fetchFilteredReport()">
+            <i class="fas fa-search"></i> SEARCH REPORT
+        </button>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card"><h4>TOTAL RECORDS</h4><p id="tCount">0</p></div>
+        <div class="stat-card" style="border-color:#10b981;"><h4>PRESENT</h4><p id="pCount" style="color:#10b981;">0</p></div>
+        <div class="stat-card" style="border-color:#f43f5e;"><h4>WITH REASON (ABSENT)</h4><p id="rCount" style="color:#f43f5e;">0</p></div>
+    </div>
+
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th>Student Details</th>
+                <th>Training / Trade</th>
+                <th>Status / Reason</th>
+                <th>Time</th>
+                <th>Master List</th>
+            </tr>
+        </thead>
+        <tbody id="reportData">
+            <tr><td colspan="5" style="text-align:center; color:#94a3b8; padding:40px;">Set filters and click Search to load data</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allTrainings = []; // To store all trainings for dependent filter
+
+window.onload = () => {
+    document.getElementById('repDate').value = new Date().toISOString().split('T')[0];
+    
+    // Load Master Lists
+    db.ref('OverallListsMetadata').once('value', snap => {
+        const sel = document.getElementById('repList');
+        snap.forEach(c => {
+            sel.innerHTML += `<option value="${c.key}">${c.val().listName}</option>`;
+        });
+    });
+
+    // Load All Trainings once to use for filtering
+    db.ref('Trainings').once('value', snap => {
+        snap.forEach(c => {
+            allTrainings.push({ id: c.key, ...c.val() });
+        });
+    });
+};
+
+// YEH FUNCTION MASTER LIST KE HISAB SE TRAINING FILTER KAREGA
+function filterTrainingsByList(listId) {
+    const tSelect = document.getElementById('repTraining');
+    tSelect.innerHTML = '<option value="">-- All Trainings in List --</option>';
+    
+    if(!listId) {
+        tSelect.innerHTML = '<option value="">-- Select Master List First --</option>';
+        return;
+    }
+
+    const filtered = allTrainings.filter(t => t.listId === listId);
+    filtered.forEach(t => {
+        tSelect.innerHTML += `<option value="${t.id}">${t.trainingName} (${t.tradeName})</option>`;
+    });
+}
+
+async function fetchFilteredReport() {
+    const dateVal = document.getElementById('repDate').value;
+    const listVal = document.getElementById('repList').value;
+    const trainVal = document.getElementById('repTraining').value;
+    const searchVal = document.getElementById('repSearch').value.toLowerCase();
+    const tbody = document.getElementById('reportData');
+
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+
+    // Fetch DailyLogs (Attendance Data)
+    db.ref('DailyLogs').once('value', snap => {
+        let results = [];
+        let present = 0;
+        let withReason = 0;
+
+        snap.forEach(c => {
+            const d = c.val();
+            
+            // Filter Logic
+            const matchDate = !dateVal || d.date === dateVal;
+            const matchList = !listVal || d.listId === listVal;
+            const matchTrain = !trainVal || d.trainingId === trainVal;
+            const matchSearch = !searchVal || d.studentName.toLowerCase().includes(searchVal) || d.mobile.includes(searchVal);
+
+            if(matchDate && matchList && matchTrain && matchSearch) {
+                results.push(d);
+                if(d.reason && d.reason.trim() !== "") withReason++;
+                else present++;
+            }
+        });
+
+        // UI Update
+        renderUI(results, present, withReason);
+    });
+}
+
+function renderUI(data, p, r) {
+    const tbody = document.getElementById('reportData');
+    document.getElementById('tCount').innerText = data.length;
+    document.getElementById('pCount').innerText = p;
+    document.getElementById('rCount').innerText = r;
+
+    if(data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:40px;">No data found for selected filters</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = data.map(d => `
+        <tr>
+            <td><b>${d.studentName}</b><br><small>${d.mobile}</small></td>
+            <td><b>${d.tradeName || 'General'}</b><br><small>${d.trainingName || '-'}</small></td>
+            <td>
+                ${d.reason ? `<span class="reason-tag">${d.reason}</span>` : '<b style="color:#10b981"><i class="fas fa-check-circle"></i> Present</b>'}
+            </td>
+            <td>${d.time || '--:--'}</td>
+            <td><small>${d.listName || '-'}</small></td>
+        </tr>
+    `).join('');
+}
+</script>
+</body>
+</html>

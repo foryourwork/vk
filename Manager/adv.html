@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VKETC | Smart Mobile Profile</title>
+    
+    <script>
+        // MIS LEAD Role Security
+        (function() {
+            const user = JSON.parse(sessionStorage.getItem('activeUser'));
+            if (!user) { window.location.href = "login.html"; return; }
+            const roles = user.roles || [user.role];
+            if (!roles.some(r => String(r).toLowerCase() === 'mis lead')) {
+                alert("Anधिकृत प्रवेश! Sirf MIS LEAD hi access kar sakte hain.");
+                window.location.href = "login.html";
+            }
+        })();
+    </script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { --primary: #be123c; --bg: #f8fafc; --text: #1e293b; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: var(--text); padding-bottom: 20px; }
+
+        /* Modern Preloader */
+        #preloader { position: fixed; inset: 0; background: white; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .loader-ring { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Responsive Header */
+        .header { background: white; padding: 15px; display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 1000; }
+        .back-btn { font-size: 20px; color: var(--primary); cursor: pointer; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #fff1f2; }
+
+        /* Search UI */
+        .no-print { padding: 15px; background: white; border-bottom: 1px solid #f1f5f9; }
+        .search-card { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+        select, input { width: 100%; padding: 12px; border: 2px solid #cbd5e1; border-radius: 12px; font-weight: 600; outline: none; transition: 0.3s; }
+        select:focus, input:focus { border-color: var(--primary); }
+        .btn-main { background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+        /* Profile Layout */
+        .profile-page { 
+            width: 100%; max-width: 800px; margin: 0 auto; background: white; 
+            padding: 20px; box-sizing: border-box; display: none; position: relative;
+        }
+
+        #watermark {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 60px; font-weight: 900; opacity: 0.05; pointer-events: none; z-index: 0; width: 100%; text-align: center;
+        }
+
+        .main-header { text-align: center; border-bottom: 4px double var(--primary); padding-bottom: 15px; margin-bottom: 20px; }
+        .scheme-title { color: var(--primary); font-size: 24px; font-weight: 900; margin: 0; text-transform: uppercase; }
+
+        .section-title { background: #be123c; color: white; padding: 8px 15px; font-size: 11px; font-weight: 800; border-radius: 6px; margin: 25px 0 12px; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+        
+        .grid { display: grid; grid-template-columns: 1fr; gap: 15px; position: relative; z-index: 1; }
+        @media (min-width: 600px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+        .field label { display: block; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 3px; }
+        .field span { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: #1e293b; }
+
+        .icon-c { font-size: 14px; width: 20px; text-align: center; }
+        .copy-btn { color: #94a3b8; font-size: 11px; cursor: pointer; padding: 4px; }
+
+        .log-table-wrap { overflow-x: auto; margin-top: 10px; }
+        .log-table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 450px; }
+        .log-table th { background: #f8fafc; text-align: left; padding: 10px; border-bottom: 2px solid #e2e8f0; }
+        .log-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+
+        .footer-log { margin-top: 40px; border-top: 2px solid #f1f5f9; padding-top: 20px; display: flex; flex-direction: column; gap: 30px; }
+
+        @media print {
+            .no-print, .header, #preloader { display: none !important; }
+            body { background: white; }
+            .profile-page { display: block !important; margin: 0; padding: 10mm; box-shadow: none; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="preloader"><div class="loader-ring"></div></div>
+
+<div class="header no-print">
+    <div class="back-btn" onclick="window.history.back()"><i class="fas fa-arrow-left"></i></div>
+    <div style="flex-grow:1; font-weight: 800; font-size:14px; color:var(--primary);">CANDIDATE 360° PANEL</div>
+    <div style="display:flex; gap:18px; align-items:center;">
+        <i class="fas fa-print" style="cursor:pointer; color:var(--primary); font-size:18px;" onclick="window.print()"></i>
+        <i class="fab fa-whatsapp" style="cursor:pointer; color:#25d366; font-size:22px;" onclick="shareOnWhatsApp()"></i>
+    </div>
+</div>
+
+<div class="no-print">
+    <div class="search-card">
+        <select id="searchType">
+            <option value="aadhar">AADHAAR (12 Digit)</option>
+            <option value="app">APPLICATION (13-14 Digit)</option>
+            <option value="mobile">MOBILE (10 Digit)</option>
+        </select>
+        <input type="text" id="queryInp" placeholder="Enter number here...">
+        <button class="btn-main" onclick="fetchProfile()"><i class="fas fa-sync-alt"></i> FETCH PROFILE DATA</button>
+    </div>
+</div>
+
+<div class="profile-page" id="profileView">
+    <div id="watermark">PENDING</div>
+    
+    <div class="main-header">
+        <h1 class="scheme-title" id="d_scheme">SCHEME - TRADE</h1>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:20px;">
+        <div>
+            <h2 id="d_name" style="margin:0; font-size:24px; text-transform:uppercase;">CANDIDATE NAME</h2>
+            <div id="d_app_id" style="font-weight:800; color:var(--primary); font-size:15px; margin-top:4px;">ID: ---</div>
+        </div>
+        <div id="d_tag" style="padding:5px 15px; border-radius:8px; font-size:11px; font-weight:800; border:2px solid #eee; text-align:center;">STATUS</div>
+    </div>
+
+    <div class="section-title"><i class="fas fa-user-shield"></i> Personal Identity Profile</div>
+    <div class="grid">
+        <div class="field"><label><i class="fas fa-user-friends icon-c" style="color:#6366f1"></i> Guardian Name</label><span id="d_father">---</span></div>
+        <div class="field"><label><i class="fas fa-birthday-cake icon-c" style="color:#ec4899"></i> Date of Birth</label><span id="d_dob">---</span></div>
+        <div class="field"><label><i class="fas fa-phone-alt icon-c" style="color:#10b981"></i> Primary Mobile</label><span id="d_mobile">---</span></div>
+        <div class="field"><label><i class="fas fa-mobile icon-c" style="color:#f59e0b"></i> Alt. Mobile</label><span id="d_alt">---</span></div>
+        <div class="field"><label><i class="fas fa-fingerprint icon-c" style="color:#be123c"></i> Aadhaar Number</label><span id="d_aadhar">---</span></div>
+        <div class="field"><label><i class="fas fa-venus-mars icon-c" style="color:#8b5cf6"></i> Gender / Category</label><span id="d_gen">---</span></div>
+    </div>
+
+    <div class="section-title"><i class="fas fa-university"></i> Financial & Bank Records</div>
+    <div class="grid">
+        <div class="field"><label><i class="fas fa-landmark icon-c" style="color:#0369a1"></i> Bank Name</label><span id="d_bank">---</span></div>
+        <div class="field"><label><i class="fas fa-money-check icon-c" style="color:#059669"></i> Account Number</label><span id="d_acc">---</span></div>
+        <div class="field"><label><i class="fas fa-code icon-c" style="color:#7c3aed"></i> IFSC Code</label><span id="d_ifsc">---</span></div>
+    </div>
+
+    <div class="section-title"><i class="fas fa-map-marked-alt"></i> Address (Aadhaar Registered)</div>
+    <div id="d_address" style="font-size:13px; font-weight:600; background:#f8fafc; padding:12px; border-radius:10px; line-height:1.5;">---</div>
+
+    <div class="section-title"><i class="fas fa-layer-group"></i> Training & Master Batch</div>
+    <div class="grid">
+        <div class="field"><label>Master List Source</label><span id="d_list">---</span></div>
+        <div class="field"><label>Allotted Batch Name</label><span id="d_batch" style="color:var(--primary)">---</span></div>
+    </div>
+
+    <div class="section-title"><i class="fas fa-history"></i> Recent Communication History</div>
+    <div class="log-table-wrap">
+        <table class="log-table">
+            <thead><tr><th>Timestamp</th><th>Call Status</th><th>Agent</th><th>Remarks</th></tr></thead>
+            <tbody id="d_call_logs"></tbody>
+        </table>
+    </div>
+
+    <div class="footer-log">
+        <div style="font-size:12px; font-weight:600;">
+            <div style="color:var(--primary); font-weight:800; text-decoration:underline;">VERIFICATION LOG STAMP</div>
+            <div>Verified By: <span id="v_emp" style="color:#1e293b">---</span></div>
+            <div>Verified Date: <span id="v_date" style="color:#1e293b">---</span></div>
+            <div>Verified Time: <span id="v_time" style="color:#1e293b">---</span></div>
+        </div>
+        <div style="text-align:center">
+            <div style="border-bottom: 2px solid #1e293b; width: 180px; margin: 0 auto 5px; height: 40px;"></div>
+            <div style="font-size:10px; font-weight:800;">AUTHORISED SIGNATORY</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+window.onload = () => { setTimeout(() => { document.getElementById('preloader').style.display='none'; }, 800); };
+
+function copy(t) {
+    navigator.clipboard.writeText(t);
+    Swal.fire({ text: 'Copied: ' + t, icon: 'success', toast: true, position: 'top', showConfirmButton: false, timer: 1000 });
+}
+
+function htmCopy(v) {
+    if(!v || v === '---') return '---';
+    return `${v} <i class="fas fa-copy copy-btn" onclick="copy('${v}')"></i>`;
+}
+
+// DOB Formatting
+function fmtDate(r) {
+    if(!r || r==='---') return '---';
+    try {
+        let d = new Date(r);
+        if(isNaN(d.getTime())) {
+            let p = r.split(/[\/\- ]/);
+            if(p.length === 3) {
+                if(p[0].length === 4) return `${p[2].padStart(2,'0')}-${p[1].padStart(2,'0')}-${p[0]}`;
+                return `${p[0].padStart(2,'0')}-${p[1].padStart(2,'0')}-${p[2]}`;
+            }
+            return r;
+        }
+        return d.toLocaleDateString('en-GB').replace(/\//g, '-');
+    } catch(e) { return r; }
+}
+
+async function fetchProfile() {
+    const type = document.getElementById('searchType').value;
+    const query = document.getElementById('queryInp').value.trim().toUpperCase();
+    if(!query) return;
+
+    Swal.fire({ title: 'Master Database Sync...', didOpen: () => Swal.showLoading() });
+    
+    let cand = null; let dKey = ""; let lid = "";
+    const master = await db.ref('FullDataEntries').once('value');
+    
+    master.forEach(list => {
+        list.forEach(c => {
+            const v = c.val();
+            const hit = (type==='aadhar' && (v.verifiedAadhar===query || v.aadhar===query)) || 
+                        (type==='mobile' && (v.mobile===query || v.mobileNumber===query)) ||
+                        (type==='app' && String(v.applicationNumber)===query);
+            if(hit) { cand = v; dKey = c.key; lid = list.key; return true; }
+        });
+        if(cand) return true;
+    });
+
+    if(cand) { 
+        await render(cand, dKey, lid); 
+        Swal.close(); 
+    } else { Swal.fire('Error', 'Record Not Found in Master Database', 'error'); }
+}
+
+async function render(d, key, listId) {
+    // 1. Heading & Master Metadata
+    const listMeta = await db.ref(`OverallListsMetadata/${listId}`).once('value');
+    const lm = listMeta.val() || {};
+    document.getElementById('d_scheme').innerText = `${lm.trade || 'SCHEME'} - ${(d.tradeName || d.trade || 'TRADE').toUpperCase()}`;
+    document.getElementById('d_list').innerText = lm.listName || listId;
+
+    // 2. Personal & Identification
+    document.getElementById('d_name').innerText = (d.applicantName || "---").toUpperCase();
+    document.getElementById('d_app_id').innerHTML = "ID: " + htmCopy(d.applicationNumber);
+    document.getElementById('d_father').innerText = (d.fatherName || "---").toUpperCase();
+    document.getElementById('d_dob').innerText = fmtDate(d.dob || d.onlineSubmissionDate);
+    document.getElementById('d_mobile').innerHTML = htmCopy(d.mobile || d.mobileNumber);
+    document.getElementById('d_alt').innerHTML = htmCopy(d.alternativeMobile || d.alternateMobile || "N/A");
+    document.getElementById('d_aadhar').innerHTML = htmCopy(d.verifiedAadhar || d.aadhar || "PENDING");
+    document.getElementById('d_gen').innerText = `${d.gender || '--'} / ${d.category || '--'}`;
+    document.getElementById('d_address').innerText = d.aadharAddress || d.permanentAddress || "No address data available.";
+
+    // 3. Bank Mapping
+    document.getElementById('d_bank').innerText = `${d.bankName || '---'} (${d.branchName || '--'})`;
+    document.getElementById('d_acc').innerHTML = htmCopy(d.bankAccountNumber || d.bankAccountNo || d.accountNo);
+    document.getElementById('d_ifsc').innerHTML = htmCopy(d.ifsc || d.ifscCode);
+
+    // 4. Batch Allocation
+    const enroll = await db.ref('BatchEnrollments').once('value');
+    let bID = null;
+    enroll.forEach(b => { if(b.hasChild(String(d.applicationNumber))) bID = b.key; });
+    if(bID) {
+        const bm = await db.ref(`Batches/${bID}`).once('value');
+        document.getElementById('d_batch').innerText = bm.exists() ? bm.val().batchName : "ID: " + bID;
+    } else { document.getElementById('d_batch').innerText = "NOT ASSIGNED"; }
+
+    // 5. Watermark Status
+    let st = "PENDING"; let clr = "#64748b";
+    if(d.isVerified || d.currentStatus === "VERIFIED") { st = "VERIFIED"; clr = "#059669"; }
+    else if(d.isAbsent || d.currentStatus === "ABSENT") { st = "ABSENT"; clr = "#dc2626"; }
+    
+    document.getElementById('watermark').innerText = st;
+    document.getElementById('watermark').style.color = clr;
+    document.getElementById('d_tag').innerText = st;
+    document.getElementById('d_tag').style.borderColor = clr;
+    document.getElementById('d_tag').style.color = clr;
+
+    // 6. Verification Footer Log
+    document.getElementById('v_emp').innerText = (d.verifiedBy || "---").toUpperCase();
+    document.getElementById('v_date').innerText = d.verifiedDate ? d.verifiedDate.split(',')[0] : "---";
+    document.getElementById('v_time').innerText = d.verifiedDate ? d.verifiedDate.split(',')[1] || "" : "---";
+
+    // 7. Call Logs Fix
+    const logSnap = await db.ref(`CallHistory/${key}`).once('value');
+    let htm = "";
+    if(logSnap.exists()) {
+        logSnap.forEach(l => {
+            const v = l.val();
+            htm = `<tr><td>${v.time}</td><td><b>${v.status}</b></td><td>${v.caller}</td><td>${v.remark || '-'}</td></tr>` + htm;
+        });
+        document.getElementById('d_call_logs').innerHTML = htm;
+    } else {
+        document.getElementById('d_call_logs').innerHTML = '<tr><td colspan="4" style="text-align:center">No Records Found</td></tr>';
+    }
+
+    document.getElementById('profileView').style.display = 'block';
+}
+
+function shareOnWhatsApp() {
+    const name = document.getElementById('d_name').innerText;
+    const app = document.getElementById('d_app_id').innerText.replace('ID: ', '');
+    const mobile = document.getElementById('d_mobile').innerText;
+    const batch = document.getElementById('d_batch').innerText;
+    const status = document.getElementById('d_tag').innerText;
+    const aadhar = document.getElementById('d_aadhar').innerText;
+    const bank = document.getElementById('d_bank').innerText;
+    const acc = document.getElementById('d_acc').innerText;
+
+    const msg = `*VKETC CANDIDATE PROFILE*\n` +
+                `----------------------------\n` +
+                `*Name:* ${name}\n` +
+                `*Application:* ${app}\n` +
+                `*Mobile:* ${mobile}\n` +
+                `*Aadhaar:* ${aadhar}\n` +
+                `*Batch:* ${batch}\n` +
+                `*Status:* ${status}\n` +
+                `----------------------------\n` +
+                `*Bank:* ${bank}\n` +
+                `*Account:* ${acc}\n\n` +
+                `_Generated by VKETC MIS ENGINE_`;
+    
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Pro | Employee Performance</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #6366f1; --bg: #0f172a; --card: #1e293b; --text: #f8fafc; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: var(--text); }
+        
+        .header { background: #1e293b; padding: 15px 20px; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 15px; position: sticky; top: 0; z-index: 100; }
+        .back-btn { background: #334155; border: none; padding: 10px; border-radius: 8px; color: white; cursor: pointer; }
+        
+        .container { padding: 20px; max-width: 600px; margin: 0 auto; text-align: center; }
+
+        /* Welcome Section */
+        .welcome-box { margin-bottom: 30px; animation: fadeIn 1s ease; }
+        .welcome-box h2 { margin: 0; color: var(--primary); font-size: 1.5rem; }
+        .welcome-box p { margin: 5px 0; color: #94a3b8; font-size: 0.9rem; }
+
+        /* Filters */
+        .filter-card { background: var(--card); padding: 15px; border-radius: 20px; margin-bottom: 25px; border: 1px solid #334155; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .filter-card select, .filter-card input { background: #0f172a; border: 1px solid #334155; color: white; padding: 10px; border-radius: 10px; font-size: 0.8rem; }
+        .full-width { grid-column: span 2 !important; }
+
+        /* Progress Circle */
+        .chart-container { position: relative; width: 220px; height: 220px; margin: 20px auto; }
+        svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+        circle { fill: none; stroke-width: 15; stroke-linecap: round; }
+        .bg-circle { stroke: #334155; }
+        .prog-circle { stroke: var(--primary); stroke-dasharray: 565; stroke-dashoffset: 565; transition: stroke-dashoffset 1.5s ease; filter: drop-shadow(0 0 10px var(--primary)); }
+
+        .percentage-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .percentage-text h1 { margin: 0; font-size: 2.8rem; font-weight: 800; }
+
+        /* Personalized Feedback */
+        .feedback-box { background: rgba(99, 102, 241, 0.1); border: 1px dashed var(--primary); padding: 20px; border-radius: 20px; margin: 20px 0; }
+        #feedbackMsg { font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; }
+        #employeeWish { font-size: 0.9rem; color: #cbd5e1; line-height: 1.4; }
+
+        /* Stars */
+        .stars-container { margin: 15px 0; font-size: 1.8rem; color: #334155; }
+        .star-active { color: #f59e0b; text-shadow: 0 0 15px rgba(245, 158, 11, 0.6); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <button class="back-btn" onclick="window.history.back()"><i class="fas fa-arrow-left"></i></button>
+    <h2 style="font-size: 1rem; margin:0;">MY DASHBOARD</h2>
+</div>
+
+<div class="container">
+    <div class="welcome-box">
+        <p>नमस्ते,</p>
+        <h2 id="empNameDisplay">Employee</h2>
+        <p id="todayDateLabel"></p>
+    </div>
+
+    <div class="filter-card">
+        <input type="date" id="dateFilter" class="full-width" onchange="fetchAnalytics()">
+        <select id="listFilter" onchange="loadTrades(this.value)">
+            <option value="">सभी कैंपेन</option>
+        </select>
+        <select id="tradeFilter" onchange="fetchAnalytics()">
+            <option value="">सभी ट्रेड्स</option>
+        </select>
+    </div>
+
+    <div class="chart-container">
+        <svg><circle class="bg-circle" cx="110" cy="110" r="90"></circle><circle id="progressCircle" class="prog-circle" cx="110" cy="110" r="90"></circle></svg>
+        <div class="percentage-text"><h1 id="mainPercent">0%</h1></div>
+    </div>
+
+    <div class="stars-container" id="starRating">
+        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+    </div>
+
+    <div class="feedback-box">
+        <div id="feedbackMsg">डाटा चेक किया जा रहा है...</div>
+        <div id="employeeWish">कृपया कैंपेन सिलेक्ट करें।</div>
+    </div>
+</div>
+
+<script>
+// Firebase initialization (Same as before)
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const userData = JSON.parse(sessionStorage.getItem('activeUser'));
+const activeCaller = userData ? userData.name : "Employee";
+
+window.onload = () => {
+    document.getElementById('empNameDisplay').innerText = activeCaller;
+    document.getElementById('dateFilter').value = new Date().toISOString().split('T')[0];
+    
+    db.ref('OverallListsMetadata').once('value', s => {
+        let h = '<option value="">सभी कैंपेन</option>';
+        s.forEach(c => { if(c.val().status === "In Progress") h += `<option value="${c.key}">${c.val().listName}</option>`; });
+        document.getElementById('listFilter').innerHTML = h;
+    });
+    fetchAnalytics();
+};
+
+async function loadTrades(lid) {
+    if(!lid) {
+        document.getElementById('tradeFilter').innerHTML = '<option value="">सभी ट्रेड्स</option>';
+        fetchAnalytics(); return;
+    }
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', s => {
+        let h = '<option value="">सभी ट्रेड्स</option>';
+        s.forEach(c => { h += `<option value="${c.val().tradeName}">${c.val().tradeName}</option>`; });
+        document.getElementById('tradeFilter').innerHTML = h;
+    });
+    fetchAnalytics();
+}
+
+async function fetchAnalytics() {
+    const lid = document.getElementById('listFilter').value;
+    const tid = document.getElementById('tradeFilter').value;
+    const dateVal = document.getElementById('dateFilter').value;
+    const dObj = new Date(dateVal);
+    const formattedDate = dObj.toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+    document.getElementById('todayDateLabel').innerText = dObj.toDateString();
+
+    let total = 0, training = 0;
+    const refPath = lid ? `FullDataEntries/${lid}` : `FullDataEntries`;
+    const snap = await db.ref(refPath).once('value');
+
+    const process = (d) => {
+        if(d.lastAgent === activeCaller && d.lastCallTime && d.lastCallTime.includes(formattedDate)) {
+            if(!tid || d.tradeName === tid) {
+                total++;
+                if(d.lastCallStatus === "ट्रेनिंग में आजायेगी") training++;
+            }
+        }
+    };
+
+    if(lid) snap.forEach(c => process(c.val()));
+    else snap.forEach(camp => camp.forEach(c => process(c.val())));
+
+    updateUI(total, training);
+}
+
+function updateUI(total, training) {
+    const pct = total > 0 ? Math.round((training / total) * 100) : 0;
+    
+    // Progress Circle
+    const circle = document.getElementById('progressCircle');
+    circle.style.strokeDashoffset = 565 - (565 * pct / 100);
+    document.getElementById('mainPercent').innerText = pct + '%';
+
+    // Stars
+    const stars = document.getElementById('starRating').children;
+    const starCount = Math.ceil(pct / 20);
+    for(let i=0; i<5; i++) stars[i].className = i < starCount ? "fas fa-star star-active" : "fas fa-star";
+
+    // Personalized Messages
+    const fMsg = document.getElementById('feedbackMsg');
+    const fWish = document.getElementById('employeeWish');
+
+    if(total === 0) {
+        fMsg.innerText = "कोई डाटा नहीं मिला";
+        fWish.innerText = "आज अभी तक कोई कॉल रिकॉर्ड अपडेट नहीं हुआ है।";
+        return;
+    }
+
+    if(pct >= 80) {
+        fMsg.innerHTML = `बधाई हो, ${activeCaller}! 🎉`;
+        fMsg.style.color = "#22c55e";
+        fWish.innerText = "आपका परफॉरमेंस एक्सीलेंट है। आपने शानदार काम किया है, इसे ऐसे ही जारी रखें!";
+    } else if(pct >= 50) {
+        fMsg.innerHTML = `बहुत अच्छे, ${activeCaller}! 👍`;
+        fMsg.style.color = "#6366f1";
+        fWish.innerText = "आपका काम अच्छा है। बस थोड़ी और मेहनत करें, आप 80% का टारगेट छू सकते हैं।";
+    } else if(pct >= 30) {
+        fMsg.innerHTML = `कोशिश करें, ${activeCaller}! 📈`;
+        fMsg.style.color = "#f59e0b";
+        fWish.innerText = "आज का रिस्पॉन्स ठीक-ठाक है, लेकिन आपके अंदर और बेहतर करने की क्षमता है।";
+    } else {
+        fMsg.innerHTML = `${activeCaller}, ध्यान दें! ⚠️`;
+        fMsg.style.color = "#ef4444";
+        fWish.innerText = "आज का कन्वर्शन रेट कम है। घबराएं नहीं, अगली कॉल्स पर ध्यान दें और बेहतर करने की कोशिश करें।";
+    }
+}
+</script>
+</body>
+</html>

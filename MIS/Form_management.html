@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSSY | Master Tracking Panel</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        // Session & Role Check
+        const activeUser = JSON.parse(sessionStorage.getItem('activeUser'));
+        if (!activeUser) window.location.href = "login.html";
+        const isMISLead = activeUser.roles && activeUser.roles.some(r => String(r).toLowerCase() === 'mis lead');
+    </script>
+</head>
+<body class="bg-slate-100 font-sans">
+
+    <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+        <div class="flex items-center gap-2">
+            <span class="font-black text-xl text-red-600 italic">VSSY <span class="text-slate-800 uppercase tracking-tighter">Core</span></span>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="openModal()" class="bg-red-600 text-white px-5 py-2 rounded-full font-bold text-xs shadow-lg hover:bg-red-700 transition transform hover:scale-105">
+                <i class="fas fa-plus mr-2"></i> NEW ENTRY
+            </button>
+            <div class="text-right border-l pl-4 border-slate-200">
+                <div id="headerName" class="font-bold text-slate-800 text-sm leading-none capitalize"></div>
+                <div id="headerRole" class="text-[9px] font-black text-red-500 mt-1 uppercase tracking-widest italic"></div>
+            </div>
+            <button onclick="sessionStorage.clear(); location.href='login.html'" class="text-slate-300 hover:text-red-600 ml-2"><i class="fas fa-power-off"></i></button>
+        </div>
+    </nav>
+
+    <div class="max-w-[1600px] mx-auto p-4 md:p-8">
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-wrap gap-4 items-center">
+            <div class="relative flex-1 min-w-[300px]">
+                <i class="fas fa-search absolute left-4 top-3 text-slate-400"></i>
+                <input type="text" id="searchBox" onkeyup="filterTable()" placeholder="Search Name, UID, Trade..." class="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-red-500">
+            </div>
+            <select id="statusFilter" onchange="filterTable()" class="border border-slate-200 rounded-xl px-4 py-2.5 bg-white text-xs font-bold outline-none uppercase">
+                <option value="">Filter Status</option>
+                <option>Not Started</option><option>In Progress</option><option>Completed</option><option>Sent PDF</option><option>Payment Receive</option>
+            </select>
+            <select id="verifierFilter" onchange="filterTable()" class="border border-slate-200 rounded-xl px-4 py-2.5 bg-white text-xs font-bold outline-none uppercase">
+                <option value="">Filter Verifier</option>
+            </select>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="p-5 text-[11px] font-bold text-slate-400 uppercase">Customer & UID</th>
+                            <th class="p-5 text-[11px] font-bold text-slate-400 uppercase">Trade / Verifier</th>
+                            <th class="p-5 text-[11px] font-bold text-slate-400 uppercase">Current Status</th>
+                            <th class="p-5 text-[11px] font-bold text-slate-400 uppercase">App Number</th>
+                            <th class="p-5 text-[11px] font-bold text-slate-400 uppercase text-center">History</th>
+                            <th class="p-5 text-[11px] font-bold text-slate-400 uppercase text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataList" class="divide-y divide-slate-100 text-sm italic"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="entryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-[100] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
+            <h3 id="modalTitle" class="font-black text-slate-800 uppercase text-xl mb-6">Application Entry</h3>
+            <input type="hidden" id="editEntryID">
+            <div class="space-y-4">
+                <input type="text" id="custName" placeholder="Customer Name" class="w-full bg-slate-50 border rounded-xl p-3 outline-none ring-1 ring-slate-200 focus:ring-2 focus:ring-red-500">
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" id="custID" placeholder="User ID / Mobile" class="w-full bg-slate-50 border rounded-xl p-3 outline-none ring-1 ring-slate-200">
+                    <input type="text" id="custPass" placeholder="Password" class="w-full bg-slate-50 border rounded-xl p-3 outline-none ring-1 ring-slate-200">
+                </div>
+                
+                <select id="tradeSelect" class="w-full bg-slate-50 border rounded-xl p-3 outline-none ring-1 ring-slate-200 uppercase text-xs font-bold">
+                    <option value="">Select Trade</option>
+                    <option>Barber</option><option>Basket Weaver</option><option>Blacksmith</option><option>Carpenter</option>
+                    <option>Cobbler</option><option>Goldsmith</option><option>Halwai</option><option>Laundryman</option>
+                    <option>Potter</option><option>Raj Mistri</option><option>Tailor</option><option>Textile Product</option>
+                    <option>Soft Toys</option><option>SC/ST</option><option>OBC</option>
+                </select>
+
+                <select id="verifierSelect" onchange="toggleCustomV()" class="w-full bg-slate-50 border rounded-xl p-3 outline-none ring-1 ring-slate-200 uppercase text-xs font-bold">
+                    <option value="">Select Verifier</option>
+                    <option value="Other">-- Add Custom Verifier --</option>
+                </select>
+                <input type="text" id="customVerifier" placeholder="Enter Verifier Name" class="hidden mt-2 w-full border-red-500 border p-3 rounded-xl outline-none">
+
+                <button onclick="processSave()" class="w-full bg-red-600 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-red-700 uppercase tracking-widest mt-4">Save Entry</button>
+                <button onclick="closeModal()" class="w-full text-slate-400 font-bold py-2 text-xs uppercase">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="historyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-[110] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6">
+            <h3 class="font-black text-slate-800 uppercase text-lg mb-6 flex justify-between">
+                Tracking Timeline <button onclick="closeHistory()"><i class="fas fa-times text-slate-400"></i></button>
+            </h3>
+            <div id="timelineContent" class="space-y-6 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+            authDomain: "dbform-db4c9.firebaseapp.com",
+            databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "dbform-db4c9",
+            storageBucket: "dbform-db4c9.firebasestorage.app",
+            messagingSenderId: "930632470946",
+            appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let allEntries = [];
+        const preFedVerifiers = ["DEVASHISH","AMAN SHRIVASTAV", "VINOD", "ANGRAJ", "PUSHPENDRA", "RAMDAS", "PREMDAS", "AKRITI", "PREETI KUSHWAHA", "PRIYANKA KUSHWAHA", "YASHWANT", "RAJ KAROSIYA", "ABHISHEK RAI", "SNEHA RAI", "RAM BABU JI", "PASTOR SIR", "GM SIR", "SANTOSH BABU JI", "LALIT", "NEHA", "SHASHI", "RUBY", "RAJNI", "NARESH KHARE"];
+
+        function initApp() {
+            // Fix Header Name
+            document.getElementById('headerName').innerText = activeUser.name;
+            document.getElementById('headerRole').innerText = isMISLead ? "MIS Lead Admin" : "Executive User";
+
+            const vSel = document.getElementById('verifierSelect');
+            const vFil = document.getElementById('verifierFilter');
+            if(isMISLead) {
+                preFedVerifiers.forEach(v => {
+                    vSel.innerHTML += `<option>${v}</option>`;
+                    vFil.innerHTML += `<option>${v}</option>`;
+                });
+            }
+            loadData();
+        }
+
+        async function processSave() {
+            const name = document.getElementById('custName').value.trim();
+            const id = document.getElementById('custID').value.trim();
+            const pass = document.getElementById('custPass').value.trim();
+            const trade = document.getElementById('tradeSelect').value;
+            const verifier = document.getElementById('verifierSelect').value === 'Other' ? document.getElementById('customVerifier').value.trim() : document.getElementById('verifierSelect').value;
+            const editId = document.getElementById('editEntryID').value;
+
+            if(!name || !id || !trade || !verifier) return Swal.fire('Error', 'Details incomplete', 'error');
+
+            const entryID = editId || "VSSY-" + Date.now();
+            const timestamp = new Date().toLocaleString('en-GB');
+
+            const payload = {
+                entryID, name, customerID: id, password: pass, trade, verifier,
+                updatedAt: timestamp, lastUpdatedBy: activeUser.name
+            };
+
+            if(!editId) {
+                payload.status = 'Not Started';
+                payload.appNumber = 'N/A';
+                payload.recordedBy = activeUser.name;
+                payload.recordedByID = activeUser.employeeID;
+                payload.statusHistory = { ["Not Started"]: `${timestamp} (By ${activeUser.name})` };
+            }
+
+            await db.ref('ApplicationData/' + entryID).update(payload);
+            Swal.fire('Saved', 'Success', 'success');
+            closeModal();
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('dataList');
+            tbody.innerHTML = "";
+            const filtered = isMISLead ? data : data.filter(i => i.recordedByID === activeUser.employeeID);
+
+            filtered.forEach(val => {
+                const isLocked = !isMISLead && val.status === 'Sent PDF';
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+                        <td class="p-5">
+                            <div class="font-black text-slate-800 uppercase tracking-tighter text-sm">${val.name}</div>
+                            <div class="text-[10px] text-red-600 font-black tracking-widest mt-1">UID: ${val.customerID}</div> </td>
+                        <td class="p-5">
+                            <div class="text-indigo-600 font-black text-[9px] uppercase tracking-tighter">${val.trade}</div>
+                            <div class="text-[9px] font-bold text-slate-400 uppercase mt-1">VER: ${val.verifier}</div>
+                        </td>
+                        <td class="p-5">
+                            <span class="bg-slate-100 px-3 py-1 rounded-lg cursor-pointer font-mono text-[10px]" onclick="copyPass('${val.password}')">
+                                ${isMISLead ? val.password : '••••••••'}
+                            </span>
+                        </td>
+                        <td class="p-5">
+                            <select onchange="updateStatus('${val.entryID}', this.value, '${val.status}')" class="text-[9px] font-black border-2 border-slate-100 rounded-lg p-2 uppercase ${isLocked ? 'opacity-30 pointer-events-none' : ''}">
+                                <option ${val.status=='Not Started'?'selected':''}>Not Started</option>
+                                <option ${val.status=='In Progress'?'selected':''}>In Progress</option>
+                                <option ${val.status=='Completed'?'selected':''}>Completed</option>
+                                <option ${val.status=='Sent PDF'?'selected':''}>Sent PDF</option>
+                                <option ${val.status=='Payment Receive'?'selected':''}>Payment Receive</option>
+                            </select>
+                        </td>
+                        <td class="p-5 font-black text-xs text-slate-700 font-mono tracking-tighter">${val.appNumber}</td>
+                        <td class="p-5 text-center">
+                            <button onclick="showHistory('${val.entryID}')" class="text-slate-300 hover:text-indigo-600"><i class="fas fa-history text-lg"></i></button>
+                        </td>
+                        <td class="p-5 text-center">
+                            <div class="flex gap-4 justify-center">
+                                <button onclick="updateAppNo('${val.entryID}', '${val.status}')" class="text-indigo-600"><i class="fas fa-id-card"></i></button>
+                                ${isMISLead ? `
+                                    <button onclick="editEntry('${val.entryID}')" class="text-amber-500"><i class="fas fa-edit"></i></button>
+                                    <button onclick="deleteEntry('${val.entryID}')" class="text-red-500"><i class="fas fa-trash"></i></button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function updateStatus(id, nStat, oStat) {
+            if(!isMISLead && oStat === 'Sent PDF') return (loadData(), Swal.fire('Locked', 'Cannot reset Sent PDF', 'error'));
+            const timestamp = new Date().toLocaleString('en-GB');
+            const historyKey = nStat.replace(/\s+/g, '_');
+            
+            const updates = { 
+                status: nStat, 
+                updatedAt: timestamp, 
+                lastUpdatedBy: activeUser.name 
+            };
+            updates[`statusHistory/${nStat}`] = `${timestamp} (By ${activeUser.name})`;
+            
+            await db.ref('ApplicationData/' + id).update(updates);
+            Swal.fire({ toast: true, position: 'top', icon: 'success', title: 'Status & History Updated' });
+        }
+
+        function showHistory(id) {
+            const item = allEntries.find(i => i.entryID === id);
+            const container = document.getElementById('timelineContent');
+            container.innerHTML = "";
+            
+            const history = item.statusHistory || {};
+            Object.entries(history).forEach(([stat, details]) => {
+                container.innerHTML += `
+                    <div class="relative pl-8">
+                        <div class="absolute left-3 top-1.5 w-2.5 h-2.5 bg-red-600 rounded-full ring-4 ring-red-50"></div>
+                        <div class="font-black text-[10px] text-slate-800 uppercase tracking-widest">${stat}</div>
+                        <div class="text-[9px] text-slate-400 mt-1 italic">${details}</div>
+                    </div>
+                `;
+            });
+            document.getElementById('historyModal').classList.remove('hidden');
+        }
+
+        // Standard Utility Functions
+        function editEntry(id) {
+            const item = allEntries.find(i => i.entryID === id);
+            document.getElementById('modalTitle').innerText = "Edit Entry";
+            document.getElementById('editEntryID').value = id;
+            document.getElementById('custName').value = item.name;
+            document.getElementById('custID').value = item.customerID;
+            document.getElementById('custPass').value = item.password;
+            document.getElementById('tradeSelect').value = item.trade || "";
+            document.getElementById('entryModal').classList.remove('hidden');
+        }
+
+        async function updateAppNo(id, status) {
+            const allowed = ['Completed', 'Sent PDF', 'Payment Receive'];
+            if(!allowed.includes(status)) return Swal.fire('Status Required', 'Mark Completed first', 'warning');
+            const { value: appNo } = await Swal.fire({ title: '14-Digit App No', input: 'text' });
+            if (appNo && appNo.length === 14) await db.ref('ApplicationData/' + id).update({ appNumber: appNo });
+        }
+
+        function filterTable() {
+            const s = document.getElementById('searchBox').value.toLowerCase();
+            const fS = document.getElementById('statusFilter').value;
+            const fV = document.getElementById('verifierFilter').value;
+            const res = allEntries.filter(i => (i.name.toLowerCase().includes(s) || i.customerID.toLowerCase().includes(s)) && (fS === "" || i.status === fS) && (fV === "" || i.verifier === fV));
+            renderTable(res);
+        }
+
+        function openModal() { document.getElementById('entryModal').classList.remove('hidden'); }
+        function closeModal() { document.getElementById('entryModal').classList.add('hidden'); }
+        function closeHistory() { document.getElementById('historyModal').classList.add('hidden'); }
+        function toggleCustomV() { document.getElementById('customVerifier').classList.toggle('hidden', document.getElementById('verifierSelect').value !== 'Other'); }
+        function copyPass(p) { navigator.clipboard.writeText(p); Swal.fire({ toast: true, position: 'top', icon: 'success', title: 'Copied', showConfirmButton: false, timer: 1000 }); }
+
+        function loadData() {
+            db.ref('ApplicationData').on('value', snap => {
+                allEntries = [];
+                snap.forEach(c => { allEntries.push(c.val()); });
+                allEntries.reverse();
+                renderTable(allEntries);
+            });
+        }
+
+        window.onload = initApp;
+    </script>
+</body>
+</html>

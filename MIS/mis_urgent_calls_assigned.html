@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro | MIS Lead Universal Premium</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="tracker.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #be123c; --bg: #f8fafc; --white: #ffffff; --text: #0f172a; --success: #059669; --border: #e2e8f0; --accent: #fb7185; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background: var(--bg); margin: 0; color: var(--text); padding-bottom: 100px; overflow-x: hidden; }
+        
+        .header { background: white; padding: 12px 20px; border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        .back-btn { width: 38px; height: 38px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #fff1f2; color: var(--primary); cursor: pointer; transition: 0.3s; }
+        
+        .main-container { padding: 15px; max-width: 700px; margin: 0 auto; }
+        .filter-section { background: white; border-radius: 24px; padding: 20px; margin-bottom: 20px; box-shadow: 0 10px 25px rgba(190,18,60,0.05); border: 1px solid #fff1f2; }
+        label { font-size: 10px; font-weight: 800; color: var(--primary); text-transform: uppercase; display: block; margin-bottom: 5px; letter-spacing: 0.8px; }
+        select, input { width: 100%; padding: 12px 15px; border-radius: 14px; border: 1.5px solid #f1f5f9; font-size: 14px; font-weight: 600; background: #f8fafc; margin-bottom: 15px; outline: none; }
+
+        .card { background: white; border-radius: 20px; padding: 18px; margin-bottom: 15px; border: 1px solid var(--border); position: relative; transition: 0.4s; animation: fadeInUp 0.5s ease-out; }
+        .card.selected { border: 2.5px solid var(--primary); background: #fff1f2; }
+        
+        .c-cb { position: absolute; top: 18px; right: 18px; width: 22px; height: 22px; accent-color: var(--primary); cursor: pointer; }
+        .c-name { font-size: 18px; font-weight: 800; color: #1e293b; margin: 0; }
+        .f-name { font-size: 11px; color: #64748b; font-weight: 700; margin-bottom: 12px; display: block; }
+        
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px; margin-top: 10px; padding: 12px; background: #f8fafc; border-radius: 15px; }
+        .detail-item b { color: #64748b; display: block; font-size: 9px; text-transform: uppercase; }
+        .val { font-weight: 700; color: #334155; }
+
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .btn { border: none; padding: 12px; border-radius: 12px; font-size: 11px; font-weight: 800; cursor: pointer; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-p { background: var(--primary); color: white; }
+        .btn-s { background: #e2e8f0; color: #475569; }
+
+        .bulk-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 92%; max-width: 500px; background: #0f172a; color: white; padding: 12px 20px; border-radius: 20px; display: none; align-items: center; justify-content: center; gap: 20px; z-index: 2000; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        
+        #loader { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 3000; display: none; place-items: center; }
+        .pagination { display: flex; gap: 8px; overflow-x: auto; padding: 15px 0; }
+        .p-btn { min-width: 38px; height: 38px; border: 1.5px solid #cbd5e1; background: white; border-radius: 12px; font-weight: 800; margin-right: 5px; }
+        .p-btn.active { background: var(--primary); color: white; }
+
+        /* Excel Specific Styles */
+        .excel-box { border-top: 4px solid var(--primary); background: #fff; }
+        .preview-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+        .preview-table th { background: #f1f5f9; padding: 10px; text-align: left; color: var(--primary); }
+        .preview-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
+
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div id="loader"><i class="fas fa-circle-notch fa-spin fa-3x" style="color:var(--primary)"></i></div>
+
+<div class="header">
+    <div class="back-btn" onclick="window.history.back()"><i class="fas fa-chevron-left"></i></div>
+    <div style="flex-grow: 1;">
+        <h2 style="margin:0; font-size:16px; font-weight:800; color:var(--text);">MIS LEAD UNIVERSAL</h2>
+        <div id="uNameDisp" style="font-size:11px; color:var(--primary); font-weight:700;">Admin: --</div>
+    </div>
+</div>
+
+<div class="main-container">
+    
+    <div class="filter-section excel-box animate__animated animate__fadeIn">
+        <label><i class="fas fa-file-excel"></i> Bulk Assign via Excel</label>
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <button class="btn btn-s" onclick="downloadSample()" style="flex: 1;"><i class="fas fa-download"></i> Sample</button>
+            <input type="file" id="excelInput" accept=".xlsx, .xls" style="display: none;" onchange="handleExcel(this)">
+            <button class="btn btn-p" onclick="document.getElementById('excelInput').click()" style="flex: 2;"><i class="fas fa-upload"></i> Upload Excel</button>
+        </div>
+
+        <div id="excelPreviewArea" style="display: none;">
+            <div id="excelStats" style="font-size: 12px; font-weight: 700; margin-bottom: 10px; color: var(--success);"></div>
+            <div id="excelTableContainer" style="overflow-x: auto; border: 1px solid var(--border); border-radius: 12px;"></div>
+            <div id="excelPagination" class="pagination"></div>
+            <div class="btn-row">
+                <button class="btn btn-p" onclick="processExcelAssign()" style="grid-column: span 2; padding: 15px;">Confirm & Assign All</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="filter-section animate__animated animate__fadeIn">
+        <label>Master Data Source</label>
+        <select id="listSelect" onchange="syncTrades()"></select>
+        
+        <label>Training Trade</label>
+        <select id="tradeFilter" onchange="applyFilters()"></select>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div><label>Verification</label><select id="vFilter" onchange="applyFilters()"><option value="ALL">All Status</option><option value="V">Verified</option><option value="UV">Unverified</option></select></div>
+            <div><label>Assign Status</label><select id="aFilter" onchange="applyFilters()"><option value="ALL">All Leads</option><option value="YES">Assigned</option><option value="NO">Unassigned</option></select></div>
+        </div>
+        
+        <label>Universal Search</label>
+        <input type="text" id="searchInput" placeholder="Enter min 4 chars..." oninput="doSearch(this.value)">
+    </div>
+
+    <div id="results"></div>
+    <div id="pagination" class="pagination"></div>
+</div>
+
+<div id="bulkBar" class="bulk-bar animate__animated animate__slideInUp">
+    <div id="bulkText" style="font-size:14px; font-weight:700; white-space: nowrap;">0 Selected</div>
+    <button onclick="openBulkAssign()" class="btn btn-p" style="padding:10px 25px; border-radius: 15px; font-size: 13px;">ASSIGN BULK</button>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const currentUser = JSON.parse(sessionStorage.getItem('activeUser'));
+const ASSIGN_REASONS = ["Candidate absent after registration", "Candidate Absent in Training", "Candidate Absent more then 3 days", "Other"];
+
+let rawData = [], filteredList = [], urgentMap = {}, listMeta = {}, callers = [], selectedKeys = new Set();
+let curPage = 1, pageSize = 10;
+let excelData = [], excelPage = 1, excelPageSize = 5;
+
+window.onload = async () => {
+    if(!currentUser) { window.location.href="login.html"; return; }
+    document.getElementById('uNameDisp').innerText = `Admin: ${currentUser.name}`;
+    toggleLoader(true);
+    
+    const [metaS, empS, urgS] = await Promise.all([
+        db.ref('OverallListsMetadata').once('value'),
+        db.ref('EmployeeAuthList').once('value'),
+        db.ref('UrgentCalls').once('value')
+    ]);
+    
+    listMeta = metaS.val() || {};
+    urgentMap = urgS.val() || {};
+    callers = [{id: 'UNIVERSAL', name: 'UNIVERSAL (ALL CALLERS)'}];
+    
+    empS.forEach(e => {
+        const d = e.val();
+        if((d.roles || []).includes('Caller') || d.role === 'Caller') {
+            const finalId = d.pin || e.key;
+            callers.push({id: String(finalId), name: d.name});
+        }
+    });
+
+    let hList = '<option value="ALL">-- Search All Databases --</option>';
+    for(let k in listMeta) hList += `<option value="${k}">${listMeta[k].listName}</option>`;
+    document.getElementById('listSelect').innerHTML = hList;
+    
+    await syncTrades();
+    toggleLoader(false);
+};
+
+function toggleLoader(s) { document.getElementById('loader').style.display = s ? 'grid' : 'none'; }
+
+// --- EXCEL LOGIC START ---
+
+function downloadSample() {
+    const data = [["applicationNumber"], ["APP1001"], ["APP1002"]];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sample");
+    XLSX.writeFile(wb, "Bulk_Assign_Sample.xlsx");
+}
+
+async function handleExcel(input) {
+    const file = input.files[0];
+    if (!file) return;
+    toggleLoader(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const appIds = json.map(row => String(row.applicationNumber || "").trim()).filter(id => id !== "");
+        await syncExcelWithDB(appIds);
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+async function syncExcelWithDB(appIds) {
+    excelData = [];
+    const lid = document.getElementById('listSelect').value;
+    const snap = await db.ref(lid === 'ALL' ? 'FullDataEntries' : `FullDataEntries/${lid}`).once('value');
+    
+    const allItems = [];
+    if(lid === 'ALL') snap.forEach(c => { for(let k in c.val()) allItems.push({...c.val()[k], dbKey: k}); });
+    else { const d = snap.val(); for(let k in d) allItems.push({...d[k], dbKey: k}); }
+
+    appIds.forEach(id => {
+        const match = allItems.find(x => String(x.applicationNumber) === id);
+        if(match) excelData.push(match);
+    });
+
+    toggleLoader(false);
+    if(excelData.length === 0) {
+        Swal.fire('No Match', 'Application IDs record me nahi mili.', 'warning');
+        document.getElementById('excelPreviewArea').style.display = 'none';
+    } else {
+        document.getElementById('excelPreviewArea').style.display = 'block';
+        document.getElementById('excelStats').innerText = `Total Matched: ${excelData.length}`;
+        excelPage = 1; renderExcelPreview();
+    }
+}
+
+function renderExcelPreview() {
+    const start = (excelPage - 1) * excelPageSize;
+    const items = excelData.slice(start, start + excelPageSize);
+    let h = `<table class="preview-table"><tr><th>Candidate Details</th><th>App ID</th><th>Trade</th></tr>`;
+    items.forEach(d => {
+        h += `<tr><td><b>${d.applicantName}</b><br>${d.mobile}</td><td>${d.applicationNumber}</td><td>${d.tradeName || 'N/A'}</td></tr>`;
+    });
+    document.getElementById('excelTableContainer').innerHTML = h + `</table>`;
+    renderExcelPagination();
+}
+
+function renderExcelPagination() {
+    const pages = Math.ceil(excelData.length / excelPageSize);
+    let h = '';
+    for(let i=1; i<=pages; i++) h += `<button class="p-btn ${i==excelPage?'active':''}" onclick="excelPage=${i};renderExcelPreview();">${i}</button>`;
+    document.getElementById('excelPagination').innerHTML = h;
+}
+
+async function processExcelAssign() {
+    const { value: form } = await Swal.fire({
+        title: 'Confirm Bulk Assign',
+        confirmButtonColor: '#be123c',
+        html: `
+            <select id="exCaller" class="swal2-input">${callers.map(c => `<option value="${c.id}|${c.name}">${c.name}</option>`).join('')}</select>
+            <select id="exReason" class="swal2-input">${ASSIGN_REASONS.map(r => `<option value="${r}">${r}</option>`).join('')}</select>
+        `,
+        preConfirm: () => ({ caller: document.getElementById('exCaller').value, reason: document.getElementById('exReason').value })
+    });
+
+    if(form) {
+        toggleLoader(true);
+        const [cId, cName] = form.caller.split('|');
+        const updates = {};
+        excelData.forEach(d => {
+            updates[`UrgentCalls/${d.dbKey}`] = {
+                candidateId: d.dbKey, candidateName: d.applicantName, fatherName: d.fatherName || 'N/A',
+                mobile: d.mobile, applicationNumber: d.applicationNumber || 'N/A',
+                assignedTo: String(cId), assignedToName: cName, reason: form.reason,
+                status: 'Pending', assignedDate: new Date().toLocaleString(), callCount: 0
+            };
+            urgentMap[d.dbKey] = true;
+        });
+        await db.ref().update(updates);
+        toggleLoader(false);
+        Swal.fire('Success', `${excelData.length} leads assigned!`, 'success');
+        document.getElementById('excelPreviewArea').style.display = 'none';
+        applyFilters();
+    }
+}
+
+// --- EXCEL LOGIC END ---
+
+async function syncTrades() {
+    const lid = document.getElementById('listSelect').value;
+    let uniqueTrades = new Set();
+    const trainS = await db.ref('Trainings').once('value');
+    const data = trainS.val() || {};
+    for (let k in data) if (lid === 'ALL' || data[k].listId === lid) uniqueTrades.add(data[k].tradeName);
+    let h = '<option value="ALL">-- All Training Trades --</option>';
+    uniqueTrades.forEach(t => h += `<option value="${t}">${t}</option>`);
+    document.getElementById('tradeFilter').innerHTML = h;
+}
+
+async function doSearch(val) {
+    if(val.length < 4) {
+        document.getElementById('results').innerHTML = '<p style="text-align:center; padding:30px;">Type at least 4 chars...</p>';
+        return;
+    }
+    toggleLoader(true);
+    const lid = document.getElementById('listSelect').value;
+    const snap = await db.ref(lid === 'ALL' ? 'FullDataEntries' : `FullDataEntries/${lid}`).once('value');
+    rawData = [];
+    const process = (data, lId) => {
+        for(let k in data) {
+            const d = data[k];
+            if(d.applicantName?.toUpperCase().includes(val.toUpperCase()) || String(d.mobile).includes(val)) {
+                rawData.push({...d, dbKey: k, listId: lId});
+            }
+        }
+    };
+    if(lid === 'ALL') snap.forEach(c => process(c.val(), c.key)); else process(snap.val(), lid);
+    applyFilters();
+    toggleLoader(false);
+}
+
+function applyFilters() {
+    const v = document.getElementById('vFilter').value, a = document.getElementById('aFilter').value, t = document.getElementById('tradeFilter').value;
+    filteredList = rawData.filter(d => {
+        const isV = d.isVerified;
+        const isA = urgentMap[d.dbKey];
+        return (v === 'ALL' || (v === 'V' ? isV : !isV)) && (a === 'ALL' || (a === 'YES' ? isA : !isA)) && (t === 'ALL' || d.tradeName === t);
+    });
+    curPage = 1; render();
+}
+
+function render() {
+    const items = filteredList.slice((curPage - 1) * pageSize, curPage * pageSize);
+    let h = '';
+    items.forEach(d => {
+        const isSelected = selectedKeys.has(d.dbKey);
+        h += `<div class="card ${isSelected ? 'selected' : ''}">
+            <input type="checkbox" class="c-cb" ${isSelected?'checked':''} onchange="toggleSelect('${d.dbKey}')">
+            <h3 class="c-name">${d.applicantName}</h3>
+            <span class="f-name">FATHER: ${d.fatherName || 'N/A'}</span>
+            <div class="detail-grid">
+                <div class="detail-item"><b>MOBILE</b><span class="val">${d.mobile}</span></div>
+                <div class="detail-item"><b>TRADE</b><span class="val">${d.tradeName || 'N/A'}</span></div>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-p" onclick="openAssign('${d.dbKey}')">ASSIGN</button>
+                <button class="btn btn-s" onclick="viewLogs('${d.dbKey}', '${d.applicantName}')">HISTORY</button>
+            </div>
+        </div>`;
+    });
+    document.getElementById('results').innerHTML = h || '<p style="text-align:center; padding:30px;">No results found.</p>';
+    updatePagination();
+}
+
+function toggleSelect(key) {
+    if(selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
+    document.getElementById('bulkBar').style.display = selectedKeys.size > 0 ? 'flex' : 'none';
+    document.getElementById('bulkText').innerHTML = `${selectedKeys.size} Selected`;
+}
+
+async function openAssign(sId) {
+    const { value: form } = await Swal.fire({
+        title: 'Assign Candidate',
+        confirmButtonColor: '#be123c',
+        html: `
+            <select id="swCaller" class="swal2-input">${callers.map(c => `<option value="${c.id}|${c.name}">${c.name}</option>`).join('')}</select>
+            <select id="swReason" class="swal2-input" onchange="document.getElementById('swOther').style.display=(this.value==='Other'?'block':'none')">
+                ${ASSIGN_REASONS.map(r => `<option value="${r}">${r}</option>`).join('')}
+            </select>
+            <input id="swOther" class="swal2-input" style="display:none" placeholder="Type specific reason...">
+        `,
+        preConfirm: () => ({
+            caller: document.getElementById('swCaller').value,
+            reason: document.getElementById('swReason').value === 'Other' ? document.getElementById('swOther').value : document.getElementById('swReason').value
+        })
+    });
+
+    if(form) {
+        toggleLoader(true);
+        const [cId, cName] = form.caller.split('|');
+        const d = filteredList.find(x => x.dbKey === sId);
+        await db.ref(`UrgentCalls/${sId}`).set({
+            candidateId: sId, candidateName: d.applicantName,
+            fatherName: d.fatherName || 'N/A', mobile: d.mobile,
+            applicationNumber: d.applicationNumber || 'N/A',
+            assignedTo: String(cId), assignedToName: cName, reason: form.reason,
+            status: 'Pending', assignedDate: new Date().toLocaleString(), callCount: 0
+        });
+        urgentMap[sId] = true;
+        toggleLoader(false);
+        Swal.fire({ icon: 'success', title: 'Task Assigned', timer: 1500 });
+        render();
+    }
+}
+
+async function openBulkAssign() {
+    const { value: form } = await Swal.fire({
+        title: 'Bulk Assign',
+        confirmButtonColor: '#be123c',
+        html: `<select id="swCaller" class="swal2-input">${callers.map(c => `<option value="${c.id}|${c.name}">${c.name}</option>`).join('')}</select>
+               <select id="swReason" class="swal2-input">${ASSIGN_REASONS.map(r => `<option value="${r}">${r}</option>`).join('')}</select>`,
+        preConfirm: () => ({ caller: document.getElementById('swCaller').value, reason: document.getElementById('swReason').value })
+    });
+
+    if(form) {
+        toggleLoader(true);
+        const [cId, cName] = form.caller.split('|');
+        const updates = {};
+        for(let key of selectedKeys) {
+            const d = rawData.find(x => x.dbKey === key);
+            updates[`UrgentCalls/${key}`] = {
+                candidateId: key, candidateName: d.applicantName, fatherName: d.fatherName || 'N/A',
+                mobile: d.mobile, applicationNumber: d.applicationNumber || 'N/A',
+                assignedTo: String(cId), assignedToName: cName, reason: form.reason,
+                status: 'Pending', assignedDate: new Date().toLocaleString(), callCount: 0
+            };
+            urgentMap[key] = true;
+        }
+        await db.ref().update(updates);
+        selectedKeys.clear();
+        document.getElementById('bulkBar').style.display = 'none';
+        toggleLoader(false);
+        Swal.fire('Success', 'Leads Assigned', 'success');
+        render();
+    }
+}
+
+async function viewLogs(key, name) {
+    toggleLoader(true);
+    const snap = await db.ref(`CallHistory/${key}`).once('value');
+    toggleLoader(false);
+    let h = '<div style="text-align:left; max-height:400px; overflow-y:auto; padding:10px;">';
+    if(!snap.exists()) h += '<p style="text-align:center;">No history found.</p>';
+    else {
+        let logs = []; snap.forEach(l => logs.unshift(l.val()));
+        logs.forEach(v => {
+            h += `<div style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:12px; margin-bottom:8px;">
+                <div style="font-weight:800; color:var(--primary);">${v.status}</div>
+                <div style="font-size:10px; color:#64748b; margin-top:4px;">${v.caller} | ${v.time}</div>
+            </div>`;
+        });
+    }
+    Swal.fire({ title: 'Logs: ' + name, html: h + '</div>', confirmButtonColor: '#be123c', width: '90%' });
+}
+
+function updatePagination() {
+    const total = filteredList.length;
+    const pages = Math.ceil(total / pageSize);
+    if(pages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+    let h = '';
+    for(let i=1; i<=pages; i++) h += `<button class="p-btn ${i==curPage?'active':''}" onclick="curPage=${i};render();">${i}</button>`;
+    document.getElementById('pagination').innerHTML = h;
+}
+</script>
+</body>
+</html>

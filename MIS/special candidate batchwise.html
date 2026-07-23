@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIS Lead | Direct Export - UTB</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #4f46e5; --dark: #0f172a; --bg: #f8fafc; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; padding: 0; }
+        
+        .nav-header { background: white; padding: 15px 30px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 100; }
+        .back-btn { font-size: 20px; cursor: pointer; color: var(--dark); padding: 10px; border-radius: 50%; transition: 0.2s; }
+        .back-btn:hover { background: #f1f5f9; color: var(--primary); }
+        
+        .terminal-info { display: flex; align-items: center; gap: 10px; background: #4f46e5; color: white; padding: 8px 15px; border-radius: 10px; font-weight: 700; font-size: 13px; }
+
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .filter-card { background: white; padding: 25px; border-radius: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 30px; border: 1px solid #e2e8f0; }
+        
+        label { font-size: 10px; font-weight: 800; color: var(--primary); text-transform: uppercase; margin-bottom: 8px; display: block; letter-spacing: 1px; }
+        select { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 12px; font-weight: 600; cursor: pointer; }
+        
+        .btn { padding: 12px 25px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; }
+        .btn-bulk { background: var(--dark); color: white; width: 100%; justify-content: center; margin-top: 10px; }
+        .btn-bulk:hover { background: #000; transform: translateY(-2px); }
+
+        .batch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+        .batch-card { background: white; padding: 20px; border-radius: 18px; border: 1px solid #e2e8f0; transition: 0.3s; }
+        .batch-card:hover { transform: translateY(-5px); border-color: var(--primary); box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
+        
+        .btn-single { background: #f1f5f9; color: var(--dark); width: 100%; margin-top: 15px; border: 1px solid #e2e8f0; }
+        .btn-single:hover { background: var(--primary); color: white; }
+    </style>
+</head>
+<body>
+
+<div class="nav-header">
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <i class="fas fa-arrow-left back-btn" onclick="window.history.back()"></i>
+        <div>
+            <h2 style="margin:0; font-size: 18px; color: var(--dark);">MIS Export Terminal</h2>
+            <div style="font-size: 10px; color: #64748b; font-weight: 700;">UTB TECHNOLOGIES</div>
+        </div>
+    </div>
+    <div class="terminal-info">
+        <i class="fas fa-server"></i> DIRECT ACCESS ACTIVE
+    </div>
+</div>
+
+<div class="container">
+    <div class="filter-card">
+        <div><label>Master List</label><select id="listSelect" onchange="fetchTrainings()"><option value="">-- Select --</option></select></div>
+        <div><label>Trade</label><select id="trainingSelect" onchange="filterBatches()"><option value="">-- Trade --</option></select></div>
+        <div><label>Status</label><select id="statusFilter" onchange="filterBatches()"><option value="In Progress">In Progress</option><option value="Completed">Completed</option></select></div>
+        <div><label>Action</label><button class="btn btn-bulk" onclick="confirmAndDownloadAll()"><i class="fas fa-file-archive"></i> ALL BATCHES WORKBOOK</button></div>
+    </div>
+    <div id="batchGrid" class="batch-grid"></div>
+</div>
+
+<script>
+// Firebase Initialized
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let masterData = {}, batches = {}, enrollments = {}, specialData = {}, filteredBatches = [];
+
+// Direct Initialize without PIN
+window.onload = () => {
+    init();
+};
+
+async function init() {
+    db.ref('Batches').on('value', s => batches = s.val() || {});
+    db.ref('BatchEnrollments').on('value', s => enrollments = s.val() || {});
+    db.ref('SpecialCandidatesList').on('value', s => {
+        specialData = {};
+        s.forEach(c => { specialData[String(c.val().appNo).toUpperCase()] = c.val(); });
+    });
+    db.ref('OverallListsMetadata').once('value', s => {
+        let h = '<option value="">-- Choose List --</option>';
+        s.forEach(c => { if(c.val().status !== 'Hide It') h += `<option value="${c.key}">${c.val().listName}</option>`; });
+        document.getElementById('listSelect').innerHTML = h;
+    });
+}
+
+async function fetchTrainings() {
+    const lid = document.getElementById('listSelect').value;
+    if(!lid) return;
+    Swal.fire({ title: 'Syncing Master Data...', didOpen: () => Swal.showLoading() });
+    const snap = await db.ref(`FullDataEntries/${lid}`).once('value');
+    masterData = {};
+    Object.values(snap.val() || {}).forEach(x => { if(x.applicationNumber) masterData[String(x.applicationNumber).toUpperCase()] = x; });
+
+    db.ref('Trainings').once('value', s => {
+        let h = '<option value="">-- Select Trade --</option>';
+        s.forEach(c => { if(c.val().listId === lid) h += `<option value="${c.val().tradeName}">${c.val().trainingName}</option>`; });
+        document.getElementById('trainingSelect').innerHTML = h;
+        Swal.close();
+    });
+}
+
+function filterBatches() {
+    const trade = document.getElementById('trainingSelect').value;
+    const status = document.getElementById('statusFilter').value;
+    const grid = document.getElementById('batchGrid');
+    grid.innerHTML = ''; filteredBatches = [];
+
+    for(let id in batches) {
+        if(batches[id].trainingName === trade && batches[id].status === status) {
+            filteredBatches.push({ id, ...batches[id] });
+            grid.innerHTML += `
+                <div class="batch-card">
+                    <div style="font-weight:800; color:#0f172a;">${batches[id].batchName}</div>
+                    <div style="font-size:11px; color:#64748b; margin: 5px 0;">Duration: ${batches[id].startDate || 'NA'} to ${batches[id].endDate || 'NA'}</div>
+                    <button class="btn btn-single" onclick="confirmDownload('${id}')"><i class="fas fa-file-excel"></i> DOWNLOAD BATCH</button>
+                </div>`;
+        }
+    }
+}
+
+// FileName Format Fix
+function getFileName(trade, batch, start, end) {
+    const now = new Date();
+    const today = now.toLocaleDateString('en-GB').replace(/\//g, '-');
+    const time = `${String(now.getHours()).padStart(2,'0')}_${String(now.getMinutes()).padStart(2,'0')}`;
+    return `${trade}_${batch}_${start}_to_${end}_${today}_${time}.xlsx`.replace(/\s+/g, '_');
+}
+
+async function confirmDownload(bid) {
+    const res = await Swal.fire({ title: 'Batch Download?', text: 'Excel generate karein?', icon: 'question', showCancelButton: true });
+    if(res.isConfirmed) {
+        const b = batches[bid];
+        const enrolls = Object.keys(enrollments[bid] || {});
+        const wb = XLSX.utils.book_new();
+        const ws = buildSheet(enrolls, b);
+        XLSX.utils.book_append_sheet(wb, ws, "Batch Data");
+        XLSX.writeFile(wb, getFileName(b.trainingName, b.batchName, b.startDate, b.endDate));
+    }
+}
+
+async function confirmAndDownloadAll() {
+    if(filteredBatches.length === 0) return Swal.fire('Error', 'Pahle batch filters select karein', 'warning');
+    const res = await Swal.fire({ title: 'Download Workbook?', text: `Total ${filteredBatches.length} batches generate honge.`, icon: 'warning', showCancelButton: true });
+    if(res.isConfirmed) {
+        Swal.fire({ title: 'Creating Sheets...', didOpen: () => Swal.showLoading() });
+        const wb = XLSX.utils.book_new();
+        filteredBatches.forEach(b => {
+            const enrolls = Object.keys(enrollments[b.id] || {});
+            if(enrolls.length > 0) {
+                const ws = buildSheet(enrolls, b);
+                XLSX.utils.book_append_sheet(wb, ws, b.batchName.substring(0, 31));
+            }
+        });
+        const trade = document.getElementById('trainingSelect').value;
+        XLSX.writeFile(wb, getFileName(trade, "ALL_BATCHES", "START", "END"));
+        Swal.close();
+    }
+}
+
+function buildSheet(enrolls, b) {
+    let rows = [];
+    rows.push(["Sr.", "App ID", "Candidate Name", "Father Name", "Aadhar No", "Mobile", "DOB", "Verifier Name", "Trade"]);
+    
+    enrolls.forEach((app, i) => {
+        const ak = app.toUpperCase();
+        const m = masterData[ak] || {};
+        const s = specialData[ak] || {};
+        rows.push([i+1, ak, (m.applicantName||'NA').toUpperCase(), (m.fatherName||'NA').toUpperCase(), m.verifiedAadhar||'---', m.mobile||'---', m.dob||'---', s.of||'REGULAR', b.trainingName]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = Array(9).fill({ wch: 22 });
+    
+    // Bottom Summary Merge
+    const lastR = rows.length + 1;
+    if(!ws['!merges']) ws['!merges'] = [];
+    ws['!merges'].push({ s: { r: lastR, c: 0 }, e: { r: lastR, c: 8 } });
+    XLSX.utils.sheet_add_aoa(ws, [[`BATCH: ${b.batchName} | TRADE: ${b.trainingName} | PERIOD: ${b.startDate} - ${b.endDate} | TOTAL: ${enrolls.length}`]], { origin: { r: lastR, c: 0 } });
+    
+    ws['!pageSetup'] = { orientation: 'landscape', paperSize: 9 };
+    return ws;
+}
+</script>
+</body>
+</html>

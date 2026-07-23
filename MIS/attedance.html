@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sync Pro v3.2 | Advanced HR Portal</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #be123c; --accent: #4f46e5; --bg: #f8fafc; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); margin: 0; color: #1e293b; text-transform: uppercase; }
+        .header { background: white; padding: 15px 25px; border-bottom: 2px solid var(--primary); position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; justify-content: space-between; }
+        .container { width: 95%; max-width: 1400px; margin: 20px auto; }
+        .card { background: white; border-radius: 24px; padding: 25px; margin-bottom: 25px; border: 1px solid #e2e8f0; }
+        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end; }
+        label { font-size: 10px; font-weight: 800; color: var(--primary); margin-bottom: 5px; display: block; }
+        select, input { width: 100%; padding: 12px; border-radius: 12px; border: 1.5px solid #cbd5e1; font-weight: 600; outline: none; text-transform: uppercase; }
+        
+        .btn { padding: 12px 18px; border-radius: 12px; font-weight: 700; cursor: pointer; border: none; font-size: 11px; color: white; transition: 0.3s; display: inline-flex; align-items: center; gap: 8px; text-transform: uppercase; }
+        .btn-apply { background: var(--primary); width: 100%; justify-content: center; }
+        .btn-unleave { background: #64748b; }
+        .btn-leave { background: #f59e0b; }
+        
+        table { width: 100%; border-collapse: separate; border-spacing: 0 8px; }
+        td { background: white; padding: 15px; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; font-size: 12px; font-weight: 700; }
+        td:first-child { border-radius: 15px 0 0 15px; text-align: center; }
+        td:last-child { border-radius: 0 15px 15px 0; }
+        .low-att { color: #e11d48 !important; font-weight: 900; background: #fff1f2; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex; align-items:center;">
+        <div style="background:var(--primary); color:white; width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center;"><i class="fas fa-fingerprint"></i></div>
+        <div style="margin-left: 15px;">
+            <div id="uName" style="font-size:16px; font-weight:800;">ADMIN</div>
+            <div style="font-size:10px; color:var(--primary); font-weight:800;">SYNC PRO MASTER v3.2</div>
+        </div>
+    </div>
+    <div id="clock" style="font-weight: 800;"></div>
+</div>
+
+<div class="container">
+    <div class="card">
+        <div class="filter-grid">
+            <div><label>MASTER LIST</label><select id="listSelect" onchange="syncTrainings()"></select></div>
+            <div><label>TRAINING</label><select id="trainingSelect" onchange="filterBatches()"></select></div>
+            <div><label>BATCH</label><select id="batchFilterSelect"></select></div>
+            <div><button class="btn btn-apply" onclick="loadCandidates()"><i class="fas fa-filter"></i> APPLY FILTER</button></div>
+        </div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-bottom:15px;">
+        <button class="btn" style="background:#1e293b;" onclick="exportAttendance()"><i class="fas fa-file-excel"></i> DOWNLOAD REPORT</button>
+        <button class="btn" style="background:var(--accent);" onclick="bulkRandomize()"><i class="fas fa-random"></i> BULK RANDOMIZE</button>
+    </div>
+
+    <div class="card">
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr><th>SR</th><th>ID</th><th>NAME</th><th>HRS</th><th>%</th><th>LEAVE DATE</th><th style="text-align:right;">ACTIONS</th></tr>
+                </thead>
+                <tbody id="candidateBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyBfAuBYPAbcxctTQjiRF3TwPE3eNNwYwxk",
+    authDomain: "dbform-db4c9.firebaseapp.com",
+    databaseURL: "https://dbform-db4c9-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "dbform-db4c9",
+    storageBucket: "dbform-db4c9.firebasestorage.app",
+    messagingSenderId: "930632470946",
+    appId: "1:930632470946:web:c87062b66c96ee6e5762fb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let allEnrollments = {}, batchesData = {}, masterDataRef = {}, EMPLOYEE_LOGIN_PIN = "";
+
+window.onload = function() {
+    const sessionUser = sessionStorage.getItem('activeUser');
+    if(sessionUser) {
+        const userData = JSON.parse(sessionUser);
+        document.getElementById('uName').innerText = userData.name.toUpperCase();
+        EMPLOYEE_LOGIN_PIN = userData.pin || userData.password;
+    }
+    setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-GB'); }, 1000);
+    db.ref('OverallListsMetadata').on('value', snap => {
+        const sel = document.getElementById('listSelect');
+        sel.innerHTML = '<option value="">-- CHOOSE LIST --</option>';
+        snap.forEach(c => { if(c.val().status !== 'Hide It') sel.innerHTML += `<option value="${c.key}">${c.val().listName.toUpperCase()} (${c.val().status.toUpperCase()})</option>`; });
+    });
+    db.ref('Batches').on('value', snap => { batchesData = snap.val() || {}; });
+    db.ref('BatchEnrollments').on('value', snap => { allEnrollments = snap.val() || {}; });
+};
+
+function syncTrainings() {
+    const lid = document.getElementById('listSelect').value;
+    db.ref('Trainings').orderByChild('listId').equalTo(lid).once('value', snap => {
+        const ts = document.getElementById('trainingSelect');
+        ts.innerHTML = '<option value="">-- TRADE --</option>';
+        snap.forEach(c => { ts.innerHTML += `<option value="${c.key}" data-trade="${c.val().tradeName}">${c.val().trainingName.toUpperCase()} (${c.val().status?.toUpperCase() || 'ACTIVE'})</option>`; });
+    });
+}
+
+function filterBatches() {
+    const trade = document.getElementById('trainingSelect').options[document.getElementById('trainingSelect').selectedIndex]?.getAttribute('data-trade');
+    const bs = document.getElementById('batchFilterSelect');
+    bs.innerHTML = '<option value="">-- BATCH --</option>';
+    for(let id in batchesData) { if(batchesData[id].trainingName === trade) bs.innerHTML += `<option value="${id}">${batchesData[id].batchName.toUpperCase()} (${batchesData[id].status.toUpperCase()})</option>`; }
+}
+
+async function checkPin() {
+    const { value: pin } = await Swal.fire({ title: 'PIN REQUIRED', input: 'password', showCancelButton: true });
+    return pin === EMPLOYEE_LOGIN_PIN;
+}
+
+// Logic: Load Candidates with UI Updates
+async function loadCandidates() {
+    const lid = document.getElementById('listSelect').value;
+    const bid = document.getElementById('batchFilterSelect').value;
+    if(!lid || !bid) return;
+    
+    db.ref(`FullDataEntries/${lid}`).once('value', snap => {
+        const tbody = document.getElementById('candidateBody');
+        tbody.innerHTML = '';
+        masterDataRef = snap.val() || {};
+        const enrolls = allEnrollments[bid] || {};
+        let sr = 1;
+
+        Object.keys(enrolls).forEach(appNo => {
+            const d = Object.values(masterDataRef).find(x => String(x.applicationNumber) === String(appNo));
+            if(!d) return;
+
+            const shortID = String(appNo).substring(6);
+            const hours = parseFloat(enrolls[appNo].totalHours || 0);
+            const pct = ((hours / 60) * 100).toFixed(0);
+            const leaveDate = enrolls[appNo].leaveDate || "";
+
+            tbody.innerHTML += `<tr class="${pct < 80 ? 'low-att' : ''}">
+                <td>${sr++}</td>
+                <td><b>${shortID}</b></td>
+                <td>${d.applicantName.toUpperCase()}</td>
+                <td>${hours.toFixed(1)}</td>
+                <td>${pct}%</td>
+                <td><b style="color:#f59e0b">${leaveDate.toUpperCase()}</b></td>
+                <td style="text-align:right;">
+                    <button class="btn" style="background:var(--accent); width:35px; padding:8px;" onclick="singleRandom('${appNo}','${bid}')"><i class="fas fa-redo"></i></button>
+                    ${!leaveDate ? `<button class="btn btn-leave" style="width:35px; padding:8px;" onclick="markLeave('${appNo}','${bid}')"><i class="fas fa-calendar-alt"></i></button>` : `<button class="btn btn-unleave" style="width:35px; padding:8px;" onclick="removeLeave('${appNo}','${bid}')"><i class="fas fa-calendar-check"></i></button>`}
+                </td>
+            </tr>`;
+        });
+    });
+}
+
+// Logic: Leave Notification & Restriction
+async function markLeave(appNo, bid) {
+    if(!await checkPin()) return;
+    const batch = batchesData[bid];
+    const { value: date } = await Swal.fire({ title: 'SELECT LEAVE DATE', input: 'date', inputAttributes: { min: batch.startDate, max: batch.endDate } });
+    if(date) {
+        const formatted = date.split('-').reverse().join('-');
+        await db.ref(`BatchEnrollments/${bid}/${appNo}`).update({ leaveDate: formatted });
+        Swal.fire({ icon:'warning', title:'LEAVE APPLIED', text:`FOR ID: ${appNo.substring(6)} ON ${formatted}`, timer:2000 });
+        loadCandidates();
+    }
+}
+
+// Logic: Un-leave with Auto-Randomize & Notification
+async function removeLeave(appNo, bid) {
+    if(!await checkPin()) return;
+    const h = (Math.random() * (60 - 48) + 48).toFixed(1);
+    await db.ref(`BatchEnrollments/${bid}/${appNo}`).update({ leaveDate: null, totalHours: h });
+    Swal.fire({ icon:'success', title:'LEAVE REMOVED', text:`AUTOMATIC DATA GENERATED: ${h} HRS`, timer:2000 });
+    loadCandidates();
+}
+
+async function singleRandom(appNo, bid) {
+    if(!await checkPin()) return;
+    const h = (Math.random() * (60 - 48) + 48).toFixed(1);
+    await db.ref(`BatchEnrollments/${bid}/${appNo}`).update({ totalHours: h });
+    loadCandidates();
+}
+
+async function bulkRandomize() {
+    if(!await checkPin()) return;
+    const bid = document.getElementById('batchFilterSelect').value;
+    const enrolls = allEnrollments[bid];
+    Swal.fire({ title: 'PROCESSING BULK RANDOMIZE...', didOpen: () => Swal.showLoading() });
+    for(let appNo in enrolls) {
+        const h = (Math.random() * (60 - 48) + 48).toFixed(1);
+        await db.ref(`BatchEnrollments/${bid}/${appNo}`).update({ totalHours: h });
+    }
+    Swal.fire('SUCCESS', 'ALL CANDIDATES RANDOMIZED', 'success');
+    loadCandidates();
+}
+
+// Logic: Advanced Excel with 10:00 / 14:00 Format
+async function exportAttendance() {
+    const bid = document.getElementById('batchFilterSelect').value;
+    if(!bid || !await checkPin()) return;
+
+    const masterName = document.getElementById('listSelect').options[document.getElementById('listSelect').selectedIndex].text.split('(')[0].trim();
+    const tradeName = document.getElementById('trainingSelect').options[document.getElementById('trainingSelect').selectedIndex].text.split('(')[0].trim();
+    const batch = batchesData[bid];
+    
+    const start = new Date(batch.startDate);
+    const end = new Date(batch.endDate);
+    let dates = [];
+    for(let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) { dates.push(new Date(d).toLocaleDateString('en-GB').replace(/\//g, '-')); }
+
+    const data = Object.keys(allEnrollments[bid]).map((appNo, idx) => {
+        const m = Object.values(masterDataRef).find(x => String(x.applicationNumber) === String(appNo)) || {};
+        const leave = allEnrollments[bid][appNo].leaveDate;
+        let row = { 'SR NO': idx + 1, 'APP ID': String(appNo).substring(6), 'CANDIDATE NAME': (m.applicantName || '').toUpperCase(), 'DEPARTMENT': 'UNSET' };
+        
+        dates.forEach(d => {
+            if(d === leave) { row[d] = "LEAVE"; }
+            else { 
+                const inT = `10:${String(Math.floor(Math.random()*20)).padStart(2,'0')}`;
+                const outT = `16:${String(Math.floor(Math.random()*45)).padStart(2,'0')}`;
+                row[d] = `${inT} / ${outT}`; // Slash Format
+            }
+        });
+        row['TOTAL HOURS'] = allEnrollments[bid][appNo].totalHours || 0;
+        row['PERCENTAGE %'] = `${((parseFloat(allEnrollments[bid][appNo].totalHours||0)/60)*100).toFixed(0)}%`;
+        return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "ATTENDANCE");
+    const fileName = `${masterName}_${tradeName}_${batch.batchName}_${batch.status}.xlsx`.replace(/\s+/g, '_');
+    XLSX.writeFile(wb, fileName.toUpperCase());
+}
+</script>
+</body>
+</html>
